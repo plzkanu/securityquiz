@@ -50,16 +50,25 @@ function getReplitClient(): Client | null {
   return replitClient;
 }
 
-export async function loadStore(): Promise<AppStore> {
-  const client = getReplitClient();
-  if (client) {
-    const raw = await client.get(STORE_KEY);
-    if (raw == null) return emptyStore();
+/** `@replit/database` get() returns `{ ok, value }`, not the value directly. */
+function storeFromReplitValue(value: unknown): AppStore {
+  if (value == null) return emptyStore();
+  if (typeof value === "string") {
     try {
-      return normalizeStore(JSON.parse(String(raw)));
+      return normalizeStore(JSON.parse(value));
     } catch {
       return emptyStore();
     }
+  }
+  return normalizeStore(value);
+}
+
+export async function loadStore(): Promise<AppStore> {
+  const client = getReplitClient();
+  if (client) {
+    const res = await client.get(STORE_KEY);
+    if (!res.ok) return emptyStore();
+    return storeFromReplitValue(res.value);
   }
   return readLocal();
 }
@@ -78,7 +87,15 @@ export async function loadStoreWithBootstrap(): Promise<AppStore> {
 export async function saveStore(store: AppStore): Promise<void> {
   const client = getReplitClient();
   if (client) {
-    await client.set(STORE_KEY, JSON.stringify(store));
+    // Client.set() already JSON.stringify's; pass the object (not a pre-stringified blob).
+    const res = await client.set(STORE_KEY, store);
+    if (!res.ok) {
+      throw new Error(
+        typeof res.error === "object" && res.error && "message" in res.error
+          ? String((res.error as { message: string }).message)
+          : "Replit Database set failed"
+      );
+    }
     return;
   }
   await writeLocal(store);
