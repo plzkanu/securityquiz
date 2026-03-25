@@ -12,6 +12,8 @@ export default function AdminQuizReportPage() {
   const [report, setReport] = useState<QuizReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [resetting, setResetting] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -33,6 +35,32 @@ export default function AdminQuizReportPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function clearAllSubmissions() {
+    if (!id) return;
+    const n = report?.summary.completedUsers ?? 0;
+    const msg =
+      n > 0
+        ? `이 퀴즈의 응시 기록 ${n}건을 모두 삭제합니다. 삭제 후 사용자는 다시 제출할 수 있습니다. 계속할까요?`
+        : "현재 저장된 응시 기록이 없습니다. 그래도 제출 데이터를 비울까요?";
+    if (!confirm(msg)) return;
+    setResetting(true);
+    setResetMessage(null);
+    try {
+      const res = await fetch(`/api/admin/quizzes/${id}/submissions`, { method: "DELETE" });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; removed?: number };
+      if (!res.ok) {
+        setResetMessage(data.error || "초기화에 실패했습니다.");
+        return;
+      }
+      setResetMessage(`응시 기록 ${data.removed ?? 0}건을 삭제했습니다.`);
+      await load();
+    } catch {
+      setResetMessage("초기화 중 오류가 발생했습니다.");
+    } finally {
+      setResetting(false);
+    }
+  }
 
   if (loading) {
     return <p className="text-[var(--muted)]">불러오는 중…</p>;
@@ -60,13 +88,29 @@ export default function AdminQuizReportPage() {
           <h1 className="mt-1 text-2xl font-bold text-white">{report.quiz.title}</h1>
           <p className="mt-1 text-sm text-[var(--muted)]">문항 수 {report.quiz.questionCount}개</p>
         </div>
-        <Link
-          href="/admin"
-          className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--muted)] hover:text-white"
-        >
-          ← 관리자 홈
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={resetting}
+            onClick={() => void clearAllSubmissions()}
+            className="rounded-lg border border-amber-800/60 bg-amber-950/30 px-3 py-1.5 text-sm text-amber-200/90 hover:border-amber-500/50 hover:text-white disabled:opacity-50"
+          >
+            {resetting ? "처리 중…" : "응시 기록 전체 초기화"}
+          </button>
+          <Link
+            href="/admin"
+            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--muted)] hover:text-white"
+          >
+            ← 관리자 홈
+          </Link>
+        </div>
       </div>
+
+      {resetMessage && (
+        <p className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm text-[var(--muted)]">
+          {resetMessage}
+        </p>
+      )}
 
       <p className="rounded-lg border border-blue-500/25 bg-blue-950/20 px-4 py-3 text-sm text-blue-100/90">
         대상은 <strong className="text-white">역할이 &quot;사용자&quot;인 계정</strong>만 포함됩니다. 사용자당 퀴즈당{" "}
