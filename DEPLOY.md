@@ -125,6 +125,13 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 - **PostgreSQL** 용 **`DATABASE_URL`** 과는 **다릅니다**. 이 저장소 코드는 SQL DB에 연결하지 않습니다.
 - 로컬 PC(Cursor)에서는 보통 `REPLIT_DB_URL` 이 없으므로 **`.data/store.json`** 을 씁니다. Replit에서만 KV DB를 쓰면 됩니다.
 
+### Q. Replit **Database** 화면에 “테이블이 없다”고만 나옴
+
+Replit **Database** 도구의 **Overview / Tables** 는 **SQL(관계형) DB** 스키마를 보여 줍니다. 이 앱은 SQL 테이블을 만들지 않고, **Key-Value 저장소**에 키 **`security_quiz_app`** 하나에 JSON 전체를 넣습니다. 그래서 **테이블이 0개인 것이 정상**이며, 데이터가 없는 뜻이 아닙니다.
+
+- 앱에서 사용자·퀴즈를 등록한 뒤에도 SQL **Tables** 에는 아무것도 안 보일 수 있습니다.
+- 저장 여부는 사이트에서 목록이 유지되는지, 또는 (고급) KV 조회 도구가 있으면 키 목록으로 확인합니다.
+
 ### 1) Repl에서 Key-Value DB 켜기
 
 1. Replit 워크스페이스 왼쪽 **Tools** 를 열고, 검색창에 **Database** / **Replit Database** 등으로 검색해 **키–값(Key-Value) 형태**의 Replit DB를 Repl에 연결합니다. (UI는 플랫폼 업데이트로 이름이 바뀔 수 있습니다.)
