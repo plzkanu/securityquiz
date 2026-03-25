@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import type { QuizReport } from "@/lib/quiz-report";
 
 export default function AdminQuizReportPage() {
@@ -14,6 +14,8 @@ export default function AdminQuizReportPage() {
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [userSearch, setUserSearch] = useState("");
+  const [openDetailUserId, setOpenDetailUserId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -79,6 +81,14 @@ export default function AdminQuizReportPage() {
 
   const maxHist = Math.max(1, ...report.correctCountHistogram.map((h) => h.count));
   const maxBand = Math.max(1, ...report.scoreBandHistogram.map((h) => h.count));
+
+  const searchQ = userSearch.trim().toLowerCase();
+  const filteredUserRows = !searchQ
+    ? report.userRows
+    : report.userRows.filter((u) => {
+        const blob = [u.username, u.name ?? "", u.department].join(" ").toLowerCase();
+        return blob.includes(searchQ);
+      });
 
   return (
     <div className="space-y-10">
@@ -244,46 +254,122 @@ export default function AdminQuizReportPage() {
       </section>
 
       <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
-        <h2 className="text-lg font-semibold text-white">대상자별 현황</h2>
-        <div className="mt-4 max-h-[480px] overflow-auto">
-          <table className="w-full min-w-[560px] border-collapse text-sm">
-            <thead className="sticky top-0 bg-[var(--card)]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <h2 className="text-lg font-semibold text-white">대상자별 현황</h2>
+          <label className="flex w-full flex-col gap-1 sm:w-72">
+            <span className="text-xs text-[var(--muted)]">사용자 검색 (아이디·이름·부서)</span>
+            <input
+              type="search"
+              value={userSearch}
+              onChange={(e) => {
+                setUserSearch(e.target.value);
+                setOpenDetailUserId(null);
+              }}
+              placeholder="검색…"
+              className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-white placeholder:text-[var(--muted)] focus:border-blue-500/50 focus:outline-none"
+            />
+          </label>
+        </div>
+        <p className="mt-2 text-xs text-[var(--muted)]">
+          제출 완료인 경우 <span className="text-[var(--text)]">문항별</span>에서 문항별 정·오답을 확인할 수 있습니다.
+        </p>
+        <div className="mt-4 max-h-[520px] overflow-auto">
+          <table className="w-full min-w-[640px] border-collapse text-sm">
+            <thead className="sticky top-0 z-[1] bg-[var(--card)]">
               <tr className="border-b border-[var(--border)] text-left text-[var(--muted)]">
                 <th className="py-2 pr-3 font-medium">아이디</th>
                 <th className="py-2 pr-3 font-medium">이름</th>
                 <th className="py-2 pr-3 font-medium">부서</th>
                 <th className="py-2 pr-3 font-medium">상태</th>
                 <th className="py-2 pr-3 font-medium tabular-nums">점수</th>
-                <th className="py-2 font-medium">제출 시각</th>
+                <th className="py-2 pr-3 font-medium">제출 시각</th>
+                <th className="py-2 font-medium">문항별</th>
               </tr>
             </thead>
             <tbody>
-              {report.userRows.map((u) => (
-                <tr key={u.userId} className="border-b border-[var(--border)]/60">
-                  <td className="py-2 pr-3 text-white">{u.username}</td>
-                  <td className="py-2 pr-3 text-[var(--muted)]">{u.name ?? "—"}</td>
-                  <td className="py-2 pr-3 text-[var(--muted)]">{u.department}</td>
-                  <td className="py-2 pr-3">
-                    {u.completed ? (
-                      <span className="text-green-300/90">완료</span>
-                    ) : (
-                      <span className="text-amber-200/80">미응시</span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-3 tabular-nums">
-                    {u.completed && u.correct !== undefined && u.total !== undefined ? (
-                      <>
-                        {u.correct}/{u.total} ({u.scorePercent}%)
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="py-2 text-xs text-[var(--muted)]">
-                    {u.submittedAt ? new Date(u.submittedAt).toLocaleString("ko-KR") : "—"}
+              {filteredUserRows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-[var(--muted)]">
+                    검색 조건에 맞는 사용자가 없습니다.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredUserRows.map((u) => (
+                  <Fragment key={u.userId}>
+                    <tr className="border-b border-[var(--border)]/60">
+                      <td className="py-2 pr-3 text-white">{u.username}</td>
+                      <td className="py-2 pr-3 text-[var(--muted)]">{u.name ?? "—"}</td>
+                      <td className="py-2 pr-3 text-[var(--muted)]">{u.department}</td>
+                      <td className="py-2 pr-3">
+                        {u.completed ? (
+                          <span className="text-green-300/90">완료</span>
+                        ) : (
+                          <span className="text-amber-200/80">미응시</span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-3 tabular-nums">
+                        {u.completed && u.correct !== undefined && u.total !== undefined ? (
+                          <>
+                            {u.correct}/{u.total} ({u.scorePercent}%)
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="py-2 pr-3 text-xs text-[var(--muted)]">
+                        {u.submittedAt ? new Date(u.submittedAt).toLocaleString("ko-KR") : "—"}
+                      </td>
+                      <td className="py-2">
+                        {u.completed ? (
+                          <button
+                            type="button"
+                            aria-expanded={openDetailUserId === u.userId}
+                            onClick={() =>
+                              setOpenDetailUserId((id) => (id === u.userId ? null : u.userId))
+                            }
+                            className="rounded-md border border-[var(--border)] px-2 py-1 text-xs text-blue-200/90 hover:border-blue-500/40 hover:text-white"
+                          >
+                            {openDetailUserId === u.userId ? "접기" : "보기"}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-[var(--muted)]">—</span>
+                        )}
+                      </td>
+                    </tr>
+                    {openDetailUserId === u.userId && u.completed ? (
+                      <tr className="border-b border-[var(--border)]/60 bg-[var(--bg)]/50">
+                        <td colSpan={7} className="px-3 py-3">
+                          {u.questionResults && u.questionResults.length > 0 ? (
+                            <ul className="flex flex-wrap gap-2">
+                              {u.questionResults.map((r) => (
+                                <li
+                                  key={r.questionId}
+                                  className={`rounded-md border px-2.5 py-1 text-xs tabular-nums ${
+                                    r.correct
+                                      ? "border-emerald-800/60 bg-emerald-950/35 text-emerald-200/95"
+                                      : "border-red-900/50 bg-red-950/30 text-red-200/90"
+                                  }`}
+                                >
+                                  {r.order}번{" "}
+                                  <span className="font-medium">{r.correct ? "정답" : "오답"}</span>
+                                  <span className="ml-1 text-[var(--muted)]">
+                                    ({r.kind === "choice" ? "객관식" : "주관식"})
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-xs text-[var(--muted)]">
+                              문항별 기록이 없습니다. 이전에 제출된 데이터는 합산 점수만 저장되어 있습니다. 문항별
+                              득점은 이후 제출부터 표시됩니다.
+                            </p>
+                          )}
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                ))
+              )}
             </tbody>
           </table>
         </div>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import type { QuizResultDetail } from "@/lib/quiz-result-details";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type PublicQuestionChoice = {
@@ -31,9 +32,84 @@ type QuizPublic = {
 /** 객관식: number | null, 주관식: string */
 type AnswerSlot = number | null | string;
 
-type ResultDetail =
-  | { questionId: string; kind: "choice"; correct: boolean; correctChoiceIndex: number }
-  | { questionId: string; kind: "short"; correct: boolean; referenceAnswer: string };
+function QuizResultReviewList({
+  quiz,
+  details,
+  heading,
+}: {
+  quiz: QuizPublic;
+  details: QuizResultDetail[];
+  heading: string;
+}) {
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+      <h2 className="text-base font-semibold text-white">{heading}</h2>
+      <ul className="mt-3 space-y-4 text-sm">
+        {quiz.questions.map((qq, i) => {
+          const d = details[i];
+          if (!d) return null;
+          return (
+            <li key={qq.id} className="border-b border-[var(--border)]/80 pb-4 last:border-0 last:pb-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={d.correct ? "text-green-400" : "text-red-300"}>{d.correct ? "○" : "×"}</span>
+                <span className="text-[var(--muted)]">문항 {i + 1}</span>
+                <span className="text-xs text-[var(--muted)]">({qq.kind === "choice" ? "객관식" : "주관식"})</span>
+              </div>
+              <p className="mt-2 whitespace-pre-wrap text-[var(--text)]">{qq.prompt}</p>
+              {d.kind === "choice" ? (
+                <div className="mt-2 space-y-1 text-xs">
+                  <p className="text-[var(--muted)]">
+                    내가 선택한 답:{" "}
+                    <span className="text-[var(--text)]">{d.selectedLabel ?? "선택 없음"}</span>
+                  </p>
+                  {!d.correct ? (
+                    <>
+                      <p className="text-[var(--muted)]">
+                        정답: <span className="text-emerald-200/90">{d.correctChoiceText}</span>
+                      </p>
+                      {d.wrongAnswerExplain ? (
+                        <div className="mt-2 rounded-md border border-amber-800/40 bg-amber-950/25 px-3 py-2 text-sm">
+                          <p className="text-xs font-medium text-amber-200/90">안내</p>
+                          <p className="mt-1 whitespace-pre-wrap text-[var(--text)]">{d.wrongAnswerExplain}</p>
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <p className="text-green-200/85">
+                      정답입니다. ({d.correctChoiceText})
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-2 space-y-1 text-xs">
+                  <p className="text-[var(--muted)]">
+                    내가 입력한 답:{" "}
+                    <span className="text-[var(--text)]">{d.userAnswer.trim() ? d.userAnswer : "(미입력)"}</span>
+                  </p>
+                  {!d.correct ? (
+                    <>
+                      <p className="text-[var(--muted)]">
+                        참고 정답: <span className="text-emerald-200/90">{d.referenceAnswer || "—"}</span>
+                      </p>
+                      {d.wrongAnswerExplain ? (
+                        <div className="mt-2 rounded-md border border-amber-800/40 bg-amber-950/25 px-3 py-2 text-sm">
+                          <p className="text-xs font-medium text-amber-200/90">안내</p>
+                          <p className="mt-1 whitespace-pre-wrap text-[var(--text)]">{d.wrongAnswerExplain}</p>
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <p className="text-green-200/85">정답으로 인정된 답안입니다.</p>
+                  )}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
 
 export default function TakeQuizPage() {
   const params = useParams();
@@ -49,7 +125,7 @@ export default function TakeQuizPage() {
   const [result, setResult] = useState<{
     total: number;
     correct: number;
-    details: ResultDetail[];
+    details: QuizResultDetail[];
   } | null>(null);
   const [noticeAcknowledged, setNoticeAcknowledged] = useState(false);
   const [noticeDeclined, setNoticeDeclined] = useState(false);
@@ -57,6 +133,7 @@ export default function TakeQuizPage() {
     total: number;
     correct: number;
     submittedAt: string;
+    details: QuizResultDetail[] | null;
   } | null>(null);
 
   const quizRef = useRef(quiz);
@@ -93,11 +170,21 @@ export default function TakeQuizPage() {
     const data = (await res.json()) as {
       quiz: QuizPublic;
       alreadyCompleted?: boolean;
-      submission?: { total: number; correct: number; submittedAt: string };
+      submission?: {
+        total: number;
+        correct: number;
+        submittedAt: string;
+        details?: QuizResultDetail[] | null;
+      };
     };
     setSubmitError(null);
     if (data.alreadyCompleted && data.submission) {
-      setPriorSubmission(data.submission);
+      setPriorSubmission({
+        total: data.submission.total,
+        correct: data.submission.correct,
+        submittedAt: data.submission.submittedAt,
+        details: data.submission.details ?? null,
+      });
       setQuiz(data.quiz);
       setAnswers([]);
       setIndex(0);
@@ -175,7 +262,7 @@ export default function TakeQuizPage() {
       const data = (await res.json()) as {
         total: number;
         correct: number;
-        details: ResultDetail[];
+        details: QuizResultDetail[];
       };
       setResult(data);
     } finally {
@@ -296,6 +383,13 @@ export default function TakeQuizPage() {
             제출 시각: {new Date(priorSubmission.submittedAt).toLocaleString("ko-KR")}
           </p>
         </div>
+        {priorSubmission.details && priorSubmission.details.length === quiz.questions.length ? (
+          <QuizResultReviewList quiz={quiz} details={priorSubmission.details} heading="문항별 채점 내역" />
+        ) : (
+          <p className="text-sm text-[var(--muted)]">
+            이 제출에는 문항별 답안·해설이 저장되어 있지 않습니다. 이후 제출분부터 오답 해설·정답 안내가 표시됩니다.
+          </p>
+        )}
         <Link
           href="/quizzes"
           className="inline-flex items-center rounded-lg border border-[var(--border)] px-4 py-2 text-sm text-[var(--muted)] hover:text-white"
@@ -313,26 +407,7 @@ export default function TakeQuizPage() {
         <p className="text-lg text-[var(--text)]">
           <span className="font-semibold text-blue-300">{result.correct}</span> / {result.total} 정답
         </p>
-        <ul className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--card)] p-4 text-sm">
-          {quiz.questions.map((qq, i) => {
-            const d = result.details[i];
-            return (
-              <li key={qq.id} className="flex flex-col gap-1 border-b border-[var(--border)] py-2 last:border-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={d.correct ? "text-green-400" : "text-red-300"}>{d.correct ? "○" : "×"}</span>
-                  <span className="text-[var(--muted)]">문항 {i + 1}</span>
-                  <span className="text-xs text-[var(--muted)]">({qq.kind === "choice" ? "객관식" : "주관식"})</span>
-                </div>
-                {!d.correct && d.kind === "choice" && (
-                  <span className="text-xs text-[var(--muted)]">정답: 선택지 {d.correctChoiceIndex + 1}</span>
-                )}
-                {!d.correct && d.kind === "short" && d.referenceAnswer && (
-                  <span className="text-xs text-[var(--muted)]">참고 정답 예: {d.referenceAnswer}</span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <QuizResultReviewList quiz={quiz} details={result.details} heading="문항별 채점 내역" />
         <Link
           href="/quizzes"
           className="inline-flex items-center rounded-lg border border-[var(--border)] px-4 py-2 text-sm text-[var(--muted)] hover:text-white"

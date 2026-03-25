@@ -1,5 +1,5 @@
 import { migrateQuiz } from "./questions";
-import type { AppStore, QuizSubmission } from "./types";
+import type { AppStore, QuizSubmission, QuizSubmissionQuestionResult } from "./types";
 
 export const REPORT_NO_DEPARTMENT = "(부서 없음)";
 
@@ -31,6 +31,8 @@ export type QuizReportUserRow = {
   total?: number;
   scorePercent?: number;
   submittedAt?: string;
+  /** 제출에 저장된 문항별 정오답(1번부터 순서) */
+  questionResults?: Array<QuizSubmissionQuestionResult & { order: number }>;
 };
 
 export type QuizReport = {
@@ -97,6 +99,16 @@ export function buildQuizReport(store: AppStore, quizId: string): QuizReport | n
         completed: false,
       };
     }
+    const qr = sub.questionResults;
+    const questionResults =
+      qr && qr.length > 0
+        ? qr.map((r, i) => ({
+            order: i + 1,
+            questionId: r.questionId,
+            kind: r.kind,
+            correct: r.correct,
+          }))
+        : undefined;
     return {
       userId: u.id,
       username: u.username,
@@ -107,6 +119,7 @@ export function buildQuizReport(store: AppStore, quizId: string): QuizReport | n
       total: sub.total,
       scorePercent: scorePercent(sub.correct, sub.total),
       submittedAt: sub.submittedAt,
+      questionResults,
     };
   });
 

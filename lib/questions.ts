@@ -39,12 +39,17 @@ export function migrateQuestion(o: unknown): Question {
     const acceptableAnswers = Array.isArray(r.acceptableAnswers)
       ? r.acceptableAnswers.filter((x): x is string => typeof x === "string").map((s) => s.trim()).filter(Boolean)
       : [];
+    const explain =
+      typeof r.wrongAnswerExplain === "string" && r.wrongAnswerExplain.trim()
+        ? r.wrongAnswerExplain.trim()
+        : undefined;
     return {
       id,
       kind: "short",
       prompt,
       timeLimitSec,
       acceptableAnswers: acceptableAnswers.length > 0 ? acceptableAnswers : ["(정답 미설정)"],
+      ...(explain ? { wrongAnswerExplain: explain } : {}),
     };
   }
 
@@ -55,6 +60,10 @@ export function migrateQuestion(o: unknown): Question {
   const safeChoices = choices.length >= 2 ? choices : ["선택1", "선택2"];
   let idx = correctIndex;
   if (idx < 0 || idx >= safeChoices.length) idx = 0;
+  const explain =
+    typeof r.wrongAnswerExplain === "string" && r.wrongAnswerExplain.trim()
+      ? r.wrongAnswerExplain.trim()
+      : undefined;
   return {
     id,
     kind: "choice",
@@ -62,6 +71,7 @@ export function migrateQuestion(o: unknown): Question {
     timeLimitSec,
     choices: safeChoices,
     correctIndex: idx,
+    ...(explain ? { wrongAnswerExplain: explain } : {}),
   };
 }
 
@@ -98,7 +108,18 @@ export function parseQuestionsFromBody(raw: unknown): Question[] | null {
           .filter(Boolean);
       }
       if (acceptable.length === 0) return null;
-      const q: QuestionShort = { id, kind: "short", prompt, timeLimitSec, acceptableAnswers: acceptable };
+      const explain =
+        typeof o.wrongAnswerExplain === "string" && o.wrongAnswerExplain.trim()
+          ? o.wrongAnswerExplain.trim()
+          : undefined;
+      const q: QuestionShort = {
+        id,
+        kind: "short",
+        prompt,
+        timeLimitSec,
+        acceptableAnswers: acceptable,
+        ...(explain ? { wrongAnswerExplain: explain } : {}),
+      };
       out.push(q);
       continue;
     }
@@ -108,7 +129,19 @@ export function parseQuestionsFromBody(raw: unknown): Question[] | null {
       : [];
     const correctIndex = typeof o.correctIndex === "number" ? o.correctIndex : Number.NaN;
     if (choices.length < 2 || correctIndex < 0 || correctIndex >= choices.length) return null;
-    const q: QuestionChoice = { id, kind: "choice", prompt, timeLimitSec, choices, correctIndex };
+    const explain =
+      typeof o.wrongAnswerExplain === "string" && o.wrongAnswerExplain.trim()
+        ? o.wrongAnswerExplain.trim()
+        : undefined;
+    const q: QuestionChoice = {
+      id,
+      kind: "choice",
+      prompt,
+      timeLimitSec,
+      choices,
+      correctIndex,
+      ...(explain ? { wrongAnswerExplain: explain } : {}),
+    };
     out.push(q);
   }
   return out.length > 0 ? out : null;

@@ -14,6 +14,8 @@ export type QuestionDraft = {
   choices: string[];
   correctIndex: number;
   acceptableAnswers: string[];
+  /** 오답 시 응시자에게 보일 안내 */
+  wrongAnswerExplain: string;
 };
 
 type Props = {
@@ -28,6 +30,7 @@ type Props = {
 };
 
 export function questionToDraft(q: Question): QuestionDraft {
+  const explain = q.wrongAnswerExplain ?? "";
   if (q.kind === "short") {
     return {
       id: q.id,
@@ -37,6 +40,7 @@ export function questionToDraft(q: Question): QuestionDraft {
       choices: ["", ""],
       correctIndex: 0,
       acceptableAnswers: q.acceptableAnswers.length > 0 ? [...q.acceptableAnswers] : [""],
+      wrongAnswerExplain: explain,
     };
   }
   return {
@@ -47,6 +51,7 @@ export function questionToDraft(q: Question): QuestionDraft {
     choices: [...q.choices],
     correctIndex: q.correctIndex,
     acceptableAnswers: [""],
+    wrongAnswerExplain: explain,
   };
 }
 
@@ -58,6 +63,7 @@ function emptyQuestion(): QuestionDraft {
     choices: ["", ""],
     correctIndex: 0,
     acceptableAnswers: [""],
+    wrongAnswerExplain: "",
   };
 }
 
@@ -111,6 +117,7 @@ export function QuizForm({
             ...row,
             kind: "short",
             acceptableAnswers: row.acceptableAnswers.length ? row.acceptableAnswers : [""],
+            wrongAnswerExplain: row.wrongAnswerExplain ?? "",
           };
         }
         return {
@@ -118,6 +125,7 @@ export function QuizForm({
           kind: "choice",
           choices: row.choices.length >= 2 ? row.choices : ["", ""],
           correctIndex: 0,
+          wrongAnswerExplain: row.wrongAnswerExplain ?? "",
         };
       })
     );
@@ -209,6 +217,8 @@ export function QuizForm({
       availableUntil: untilIso,
       questions: questions.map((q) => {
         const timeLimitSec = clampTimeInput(q.timeLimitSec);
+        const explain = (q.wrongAnswerExplain ?? "").trim();
+        const explainField = explain ? { wrongAnswerExplain: explain } : {};
         if (q.kind === "short") {
           return {
             id: q.id,
@@ -216,6 +226,7 @@ export function QuizForm({
             prompt: q.prompt.trim(),
             timeLimitSec,
             acceptableAnswers: q.acceptableAnswers.map((s) => s.trim()).filter(Boolean),
+            ...explainField,
           };
         }
         return {
@@ -225,6 +236,7 @@ export function QuizForm({
           timeLimitSec,
           choices: q.choices.map((c) => c.trim()).filter(Boolean),
           correctIndex: q.correctIndex,
+          ...explainField,
         };
       }),
     };
@@ -454,6 +466,21 @@ export function QuizForm({
                 </button>
               </div>
             )}
+
+            <div className="rounded-lg border border-amber-900/40 bg-amber-950/15 p-3">
+              <label className="text-xs font-medium text-amber-100/90">오답 시 응시자 안내 (선택)</label>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                이 문항이 <span className="text-amber-200/80">오답</span>으로 채점되면, 아래 내용이 정답·내 답과 함께
+                표시됩니다. 해설·근거·보안 수칙 등을 적을 수 있습니다.
+              </p>
+              <textarea
+                value={q.wrongAnswerExplain ?? ""}
+                onChange={(e) => patchQuestion(i, { wrongAnswerExplain: e.target.value })}
+                rows={3}
+                placeholder="예: 올바른 조치는 ○○입니다. 내부 가이드 3장을 참고하세요."
+                className="mt-2 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+              />
+            </div>
           </div>
         ))}
       </div>

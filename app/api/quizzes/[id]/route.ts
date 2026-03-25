@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionFromCookies } from "@/lib/auth";
 import { loadStoreWithBootstrap } from "@/lib/db";
 import { isQuizAvailableNow } from "@/lib/quiz-availability";
+import { buildQuizResultDetails } from "@/lib/quiz-result-details";
 import { migrateQuiz } from "@/lib/questions";
 
 export const runtime = "nodejs";
@@ -32,25 +33,6 @@ export async function GET(_request: Request, context: { params: { id: string } }
   }
 
   const mine = (store.quizSubmissions ?? []).filter((s) => s.quizId === id && s.userId === session.sub);
-  if (mine.length > 0) {
-    mine.sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime());
-    const latest = mine[mine.length - 1]!;
-    return NextResponse.json({
-      alreadyCompleted: true,
-      quiz: {
-        id: quiz.id,
-        title: quiz.title,
-        description: quiz.description,
-        questions: [],
-      },
-      submission: {
-        total: latest.total,
-        correct: latest.correct,
-        submittedAt: latest.submittedAt,
-      },
-    });
-  }
-
   const publicQuestions = quiz.questions.map((q) => {
     if (q.kind === "choice") {
       return {
@@ -68,6 +50,31 @@ export async function GET(_request: Request, context: { params: { id: string } }
       timeLimitSec: q.timeLimitSec,
     };
   });
+
+  if (mine.length > 0) {
+    mine.sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime());
+    const latest = mine[mine.length - 1]!;
+    const stored = latest.answers;
+    const details =
+      Array.isArray(stored) && stored.length === quiz.questions.length
+        ? buildQuizResultDetails(quiz.questions, stored)
+        : null;
+    return NextResponse.json({
+      alreadyCompleted: true,
+      quiz: {
+        id: quiz.id,
+        title: quiz.title,
+        description: quiz.description,
+        questions: publicQuestions,
+      },
+      submission: {
+        total: latest.total,
+        correct: latest.correct,
+        submittedAt: latest.submittedAt,
+        details,
+      },
+    });
+  }
 
   return NextResponse.json({
     quiz: {
