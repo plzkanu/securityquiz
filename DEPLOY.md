@@ -108,6 +108,7 @@ Replit **Tools** → **Secrets** 에 다음을 설정합니다.
 | `AUTH_SECRET` | JWT·세션 서명용 비밀 값. **32바이트 이상** 난수 권장 (GitHub에 올리지 않음) |
 | `INITIAL_ADMIN_PASSWORD` | **최초 1회** 관리자 계정 자동 생성용 비밀번호. 사용자가 없을 때만 적용됩니다. |
 | `INITIAL_ADMIN_USER` | (선택) 최초 관리자 아이디. 기본값 `admin` |
+| `REPLIT_DB_URL` | **직접 넣지 않는 것이 일반적입니다.** Repl에 Key-Value Replit Database를 연결하면 Replit이 주입합니다. 배포 환경에도 전달되는지는 아래 **「Replit Database」** 절 참고. |
 
 로컬에서 생성 예시:
 
@@ -115,7 +116,41 @@ Replit **Tools** → **Secrets** 에 다음을 설정합니다.
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-이 프로젝트는 Replit 배포 시 **Replit Database**(사이트·관리자 JSON)와 **Replit Object Storage**(이미지)를 사용합니다. `REPL_ID` 등은 Replit이 자동으로 제공합니다.
+---
+
+## Replit Database (Key-Value) 쓰기
+
+이 앱의 저장소는 **`@replit/database`** 와 환경 변수 **`REPLIT_DB_URL`** 입니다. 사용자·퀴즈·제출 내역이 JSON 한 덩어리로 이 DB에 저장됩니다.
+
+- **PostgreSQL** 용 **`DATABASE_URL`** 과는 **다릅니다**. 이 저장소 코드는 SQL DB에 연결하지 않습니다.
+- 로컬 PC(Cursor)에서는 보통 `REPLIT_DB_URL` 이 없으므로 **`.data/store.json`** 을 씁니다. Replit에서만 KV DB를 쓰면 됩니다.
+
+### 1) Repl에서 Key-Value DB 켜기
+
+1. Replit 워크스페이스 왼쪽 **Tools** 를 열고, 검색창에 **Database** / **Replit Database** 등으로 검색해 **키–값(Key-Value) 형태**의 Replit DB를 Repl에 연결합니다. (UI는 플랫폼 업데이트로 이름이 바뀔 수 있습니다.)
+2. 연결되면 Replit이 **`REPLIT_DB_URL`** 을 워크스페이스 환경에 넣어 줍니다. **이 값은 GitHub에 넣지 마세요.**
+
+### 2) 배포(Deploy) 환경에도 같은 URL이 필요한지 확인
+
+배포된 사이트는 **빌드/실행 컨테이너**에서 돌아갑니다. 워크스페이스에만 `REPLIT_DB_URL` 이 있고 **배포 Secrets/환경 변수에는 없으면**, 프로덕션에서는 파일 저장으로 떨어지거나(또는 비어 있는 저장소로 동작) 데이터가 유지되지 않을 수 있습니다.
+
+- **Deploy** 패널의 **Secrets**(또는 Production 환경 변수)에 **`REPLIT_DB_URL`** 이 포함되는지 확인하세요.
+- Replit이 **개발용 DB / 프로덕션용 DB** 를 나누는 경우, 프로덕션용 DB를 배포에 연결한 뒤 그쪽에서 발급된 URL이 들어가야 합니다. ([Production databases](https://docs.replit.com/cloud-services/storage-and-databases/production-databases) 등 최신 문서 참고)
+
+### 3) 동작 확인 (Shell)
+
+값 자체는 노출하지 말고, **설정 여부만** 확인합니다.
+
+```bash
+# Linux Shell (Replit)
+test -n "$REPLIT_DB_URL" && echo "REPLIT_DB_URL is set" || echo "REPLIT_DB_URL is MISSING"
+```
+
+`MISSING` 이면 워크스페이스에서 DB 연결을 다시 확인한 뒤, 배포 Secrets도 점검합니다.
+
+### 4) 로컬 데이터를 Replit DB로 옮기기
+
+로컬에서 `.data/store.json` 으로 이미 쓰던 데이터가 있으면, Replit KV에는 자동 이전이 없습니다. 운영 전에 **관리 화면에서 사용자·퀴즈를 다시 등록**하거나, 필요하면 별도 마이그레이션 스크립트를 만듭니다.
 
 ---
 
@@ -128,6 +163,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 | Republish만 하고 Shell에서 동기화 안 함 | **3단계 전체** 실행 후 다시 Republish |
 | Replit이 예전 커밋을 가리킴 | GitHub 푸시 성공 여부 확인 후, Shell에서 `git log -1` 로 최신 커밋인지 확인 |
 | 로그인/세션 이상 | Secrets에 `AUTH_SECRET` 설정 여부 확인 후 Republish |
+| 퀴즈/사용자가 재시작 후 사라짐 | 워크스페이스·**배포** 환경 모두에 `REPLIT_DB_URL` 이 있는지 Shell 테스트로 확인 |
 
 ---
 
