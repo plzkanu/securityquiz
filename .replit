@@ -1,9 +1,10 @@
 run = "npm run dev"
 
 [deployment]
-run = ["sh", "-c", "npm run build && npm run start"]
+build = ["npm", "run", "build"]
+run = ["npm", "run", "start"]
 deploymentTarget = "cloudrun"
 
 [[ports]]
 localPort = 3000
-externalPort = 3000
+externalPort = 80

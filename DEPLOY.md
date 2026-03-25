@@ -8,7 +8,7 @@
 2. **Replit Shell** 에서 GitHub 최신 코드로 동기화  
 3. **Replit** 에서 **Republish**(또는 Deploy) 로 재배포  
 
-배포 동작은 저장소 루트의 `.replit` 파일 **`[deployment]`** 섹션에 맞춰집니다. 현재는 `npm run build` 후 `npm run start`(포트 3000)로 **Cloud Run** 대상 배포 형태입니다.
+배포 동작은 저장소 루트의 `.replit` 파일 **`[deployment]`** 섹션에 맞춰집니다. Replit은 **빌드**와 **실행**이 분리되므로 `build = ["npm","run","build"]` 와 `run = ["npm","run","start"]` 를 각각 두고, `run` 에서 `npm run build` 를 다시 넣지 않습니다(포트는 앱 3000, `externalPort` 80 은 Cloud Run 게이트웨이에 맞춘 값).
 
 ---
 
