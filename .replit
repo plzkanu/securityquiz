@@ -1,5 +1,12 @@
 run = "npm run dev"
 
+hidden = [".config", ".next"]
+
+modules = ["nodejs-22"]
+
+[nix]
+channel = "stable-24_11"
+
 [deployment]
 build = ["npm", "run", "build"]
 run = ["npm", "run", "start"]
