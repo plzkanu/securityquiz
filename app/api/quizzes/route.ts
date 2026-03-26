@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionFromCookies } from "@/lib/auth";
 import { loadStoreWithBootstrap } from "@/lib/db";
 import { isQuizAvailableNow } from "@/lib/quiz-availability";
+import { attemptQuestionCount } from "@/lib/quiz-draw";
 import { migrateQuiz } from "@/lib/questions";
 
 export const runtime = "nodejs";
@@ -20,7 +21,7 @@ export async function GET() {
       id: q.id,
       title: q.title,
       description: q.description,
-      questionCount: q.questions.length,
+      questionCount: attemptQuestionCount(q),
       createdAt: q.createdAt,
       availableFrom: q.availableFrom,
       availableUntil: q.availableUntil,
