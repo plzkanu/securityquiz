@@ -15,6 +15,7 @@ export default function EditQuizPage() {
     questions: QuestionDraft[];
     availableFrom: string | null;
     availableUntil: string | null;
+    questionsPerAttempt: number | null;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,6 +35,7 @@ export default function EditQuizPage() {
           questions: Question[];
           availableFrom?: string | null;
           availableUntil?: string | null;
+          questionsPerAttempt?: number | null;
         };
       };
       if (!cancelled) {
@@ -43,6 +45,7 @@ export default function EditQuizPage() {
           questions: data.quiz.questions.map((q) => questionToDraft(q)),
           availableFrom: data.quiz.availableFrom ?? null,
           availableUntil: data.quiz.availableUntil ?? null,
+          questionsPerAttempt: data.quiz.questionsPerAttempt ?? null,
         });
       }
     })();
@@ -75,6 +78,7 @@ export default function EditQuizPage() {
       initialQuestions={draft.questions}
       initialAvailableFrom={draft.availableFrom}
       initialAvailableUntil={draft.availableUntil}
+      initialQuestionsPerAttempt={draft.questionsPerAttempt}
     />
   );
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionFromCookies } from "@/lib/auth";
 import { loadStoreWithBootstrap, mutateStore } from "@/lib/db";
 import { parseQuizAvailabilityFromBody } from "@/lib/quiz-availability";
+import { parseQuestionsPerAttemptFromAdminBody } from "@/lib/quiz-draw";
 import { migrateQuiz, parseQuestionsFromBody } from "@/lib/questions";
 
 export const runtime = "nodejs";
@@ -25,7 +26,14 @@ export async function PUT(request: Request, context: { params: { id: string } })
   }
   const { id } = context.params;
 
-  let body: { title?: string; description?: string; questions?: unknown; availableFrom?: unknown; availableUntil?: unknown };
+  let body: {
+    title?: string;
+    description?: string;
+    questions?: unknown;
+    availableFrom?: unknown;
+    availableUntil?: unknown;
+    questionsPerAttempt?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -39,6 +47,11 @@ export async function PUT(request: Request, context: { params: { id: string } })
       { error: "제목과 유효한 문항이 필요합니다. (객관식은 선택지 2개 이상, 주관식은 허용 정답 1개 이상)" },
       { status: 400 }
     );
+  }
+
+  const qpa = parseQuestionsPerAttemptFromAdminBody(body as Record<string, unknown>, questions.length);
+  if (!qpa.ok) {
+    return NextResponse.json({ error: qpa.error }, { status: 400 });
   }
 
   const win = parseQuizAvailabilityFromBody(body as Record<string, unknown>);
@@ -61,10 +74,13 @@ export async function PUT(request: Request, context: { params: { id: string } })
       availableFrom: win.availableFrom,
       availableUntil: win.availableUntil,
     };
+    if (qpa.value !== undefined) nextQuiz.questionsPerAttempt = qpa.value;
+    else delete nextQuiz.questionsPerAttempt;
     const quizzes = [...store.quizzes];
     quizzes[idx] = nextQuiz;
+    const quizQuestionDraws = (store.quizQuestionDraws ?? []).filter((d) => d.quizId !== id);
     updated = true;
-    return { store: { ...store, quizzes }, result: null };
+    return { store: { ...store, quizzes, quizQuestionDraws }, result: null };
   });
 
   if (!updated) return NextResponse.json({ error: "없는 퀴즈입니다." }, { status: 404 });
@@ -83,7 +99,8 @@ export async function DELETE(_request: Request, context: { params: { id: string 
     const next = store.quizzes.filter((q) => q.id !== id);
     removed = next.length !== store.quizzes.length;
     const quizSubmissions = store.quizSubmissions.filter((s) => s.quizId !== id);
-    return { store: { ...store, quizzes: next, quizSubmissions }, result: null };
+    const quizQuestionDraws = (store.quizQuestionDraws ?? []).filter((d) => d.quizId !== id);
+    return { store: { ...store, quizzes: next, quizSubmissions, quizQuestionDraws }, result: null };
   });
 
   if (!removed) return NextResponse.json({ error: "없는 퀴즈입니다." }, { status: 404 });

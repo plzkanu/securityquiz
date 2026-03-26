@@ -78,11 +78,20 @@ export function migrateQuestion(o: unknown): Question {
 export function migrateQuiz(quiz: Quiz): Quiz {
   const from = quiz.availableFrom;
   const until = quiz.availableUntil;
+  const questions = quiz.questions.map((q) => migrateQuestion(q));
+  const pool = questions.length;
+  let questionsPerAttempt: number | null | undefined = quiz.questionsPerAttempt;
+  if (questionsPerAttempt != null && questionsPerAttempt !== undefined) {
+    const n = Math.floor(Number(questionsPerAttempt));
+    if (!Number.isFinite(n) || n < 1 || pool === 0) questionsPerAttempt = undefined;
+    else questionsPerAttempt = Math.min(n, pool);
+  }
   return {
     ...quiz,
     availableFrom: typeof from === "string" && from ? from : null,
     availableUntil: typeof until === "string" && until ? until : null,
-    questions: quiz.questions.map((q) => migrateQuestion(q)),
+    questions,
+    questionsPerAttempt: questionsPerAttempt === undefined ? undefined : questionsPerAttempt,
   };
 }
 

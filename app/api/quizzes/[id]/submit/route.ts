@@ -2,10 +2,11 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { getSessionFromCookies } from "@/lib/auth";
 import { loadStoreWithBootstrap, mutateStore } from "@/lib/db";
+import { attemptQuestionCount, isDrawValidForQuiz, questionsByIds, usesRandomAttempt } from "@/lib/quiz-draw";
 import { isQuizAvailableNow } from "@/lib/quiz-availability";
 import { buildQuizResultDetails, normalizeAnswersForStorage, scoreFromDetails } from "@/lib/quiz-result-details";
 import { migrateQuiz } from "@/lib/questions";
-import type { QuizSubmission } from "@/lib/types";
+import type { Question, QuizSubmission } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -47,7 +48,22 @@ export async function POST(request: Request, context: { params: { id: string } }
     );
   }
 
-  const normalizedAnswers = normalizeAnswersForStorage(quiz.questions, answers);
+  let orderedQuestions: Question[];
+  if (usesRandomAttempt(quiz) && attemptQuestionCount(quiz) > 0) {
+    const draws = store.quizQuestionDraws ?? [];
+    const draw = draws.find((d) => d.userId === session.sub && d.quizId === id);
+    if (!draw || !isDrawValidForQuiz(draw.questionIds, quiz)) {
+      return NextResponse.json(
+        { error: "출제 문항이 만료되었거나 없습니다. 퀴즈 목록에서 다시 들어와 주세요." },
+        { status: 400 }
+      );
+    }
+    orderedQuestions = questionsByIds(quiz, draw.questionIds);
+  } else {
+    orderedQuestions = quiz.questions;
+  }
+
+  const normalizedAnswers = normalizeAnswersForStorage(orderedQuestions, answers);
   if (!normalizedAnswers) {
     return NextResponse.json({ error: "모든 문항에 답해야 합니다." }, { status: 400 });
   }
@@ -59,13 +75,15 @@ export async function POST(request: Request, context: { params: { id: string } }
     );
   }
 
-  const details = buildQuizResultDetails(quiz.questions, normalizedAnswers);
+  const details = buildQuizResultDetails(orderedQuestions, normalizedAnswers);
   const { correct, total } = scoreFromDetails(details);
+  const attemptQuestionIds = orderedQuestions.map((q) => q.id);
 
   const saved = await mutateStore((s) => {
     if ((s.quizSubmissions ?? []).some((x) => x.quizId === id && x.userId === session.sub)) {
       return { store: s, result: false };
     }
+    const draws = (s.quizQuestionDraws ?? []).filter((d) => !(d.userId === session.sub && d.quizId === id));
     const submission: QuizSubmission = {
       id: randomUUID(),
       quizId: id,
@@ -74,6 +92,7 @@ export async function POST(request: Request, context: { params: { id: string } }
       total,
       correct,
       answers: normalizedAnswers,
+      attemptQuestionIds,
       questionResults: details.map((d) => ({
         questionId: d.questionId,
         kind: d.kind,
@@ -81,7 +100,7 @@ export async function POST(request: Request, context: { params: { id: string } }
       })),
     };
     const quizSubmissions = [...(s.quizSubmissions ?? []), submission];
-    return { store: { ...s, quizSubmissions }, result: true };
+    return { store: { ...s, quizSubmissions, quizQuestionDraws: draws }, result: true };
   });
   if (!saved) {
     return NextResponse.json(

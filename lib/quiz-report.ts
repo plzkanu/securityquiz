@@ -1,3 +1,4 @@
+import { attemptQuestionCount, usesRandomAttempt } from "./quiz-draw";
 import { migrateQuiz } from "./questions";
 import type { AppStore, QuizSubmission, QuizSubmissionQuestionResult } from "./types";
 
@@ -36,7 +37,16 @@ export type QuizReportUserRow = {
 };
 
 export type QuizReport = {
-  quiz: { id: string; title: string; questionCount: number };
+  quiz: {
+    id: string;
+    title: string;
+    /** 등록된 문항 풀 크기 */
+    questionCount: number;
+    /** 정답 개수 히스토그램 % 표시용(응시당 출제 문항 수가 다를 때 최대값 기준) */
+    histogramDenominator: number;
+    /** 무작위 출제 설정 시 응시당 문항 수(미설정이면 풀 전체) */
+    questionsPerAttempt: number | null;
+  };
   summary: {
     targetUsers: number;
     completedUsers: number;
@@ -81,9 +91,17 @@ export function buildQuizReport(store: AppStore, quizId: string): QuizReport | n
   if (!quizRaw) return null;
   const quiz = migrateQuiz(quizRaw);
   const qCount = quiz.questions.length;
+  const perAttempt = attemptQuestionCount(quiz);
+  const randomMode = usesRandomAttempt(quiz);
 
   const submissions = store.quizSubmissions ?? [];
   const latestByUser = latestSubmissionByUser(quizId, submissions);
+
+  let maxSubTotal = 0;
+  for (const sub of Array.from(latestByUser.values())) {
+    maxSubTotal = Math.max(maxSubTotal, sub.total);
+  }
+  const histCap = maxSubTotal > 0 ? maxSubTotal : Math.max(qCount, 1);
 
   const targetUsers = store.users.filter((u) => u.role === "user");
 
@@ -176,14 +194,14 @@ export function buildQuizReport(store: AppStore, quizId: string): QuizReport | n
   });
 
   const correctCountMap = new Map<number, number>();
-  for (let i = 0; i <= qCount; i++) correctCountMap.set(i, 0);
+  for (let i = 0; i <= histCap; i++) correctCountMap.set(i, 0);
   for (const r of userRows) {
     if (r.completed && typeof r.correct === "number") {
       const c = r.correct;
       correctCountMap.set(c, (correctCountMap.get(c) ?? 0) + 1);
     }
   }
-  const correctCountHistogram = Array.from({ length: qCount + 1 }, (_, correct) => ({
+  const correctCountHistogram = Array.from({ length: histCap + 1 }, (_, correct) => ({
     correct,
     count: correctCountMap.get(correct) ?? 0,
   }));
@@ -197,7 +215,13 @@ export function buildQuizReport(store: AppStore, quizId: string): QuizReport | n
   const scoreBandHistogram = bandCounts;
 
   return {
-    quiz: { id: quiz.id, title: quiz.title, questionCount: qCount },
+    quiz: {
+      id: quiz.id,
+      title: quiz.title,
+      questionCount: qCount,
+      histogramDenominator: histCap,
+      questionsPerAttempt: randomMode ? perAttempt : null,
+    },
     summary: {
       targetUsers: targetCount,
       completedUsers,

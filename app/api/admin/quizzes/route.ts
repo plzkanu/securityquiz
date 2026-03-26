@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getSessionFromCookies } from "@/lib/auth";
 import { loadStoreWithBootstrap, mutateStore } from "@/lib/db";
 import { parseQuizAvailabilityFromBody } from "@/lib/quiz-availability";
+import { parseQuestionsPerAttemptFromAdminBody } from "@/lib/quiz-draw";
 import { migrateQuiz, parseQuestionsFromBody } from "@/lib/questions";
 import type { Quiz } from "@/lib/types";
 
@@ -24,7 +25,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
   }
 
-  let body: { title?: string; description?: string; questions?: unknown; availableFrom?: unknown; availableUntil?: unknown };
+  let body: {
+    title?: string;
+    description?: string;
+    questions?: unknown;
+    availableFrom?: unknown;
+    availableUntil?: unknown;
+    questionsPerAttempt?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -38,6 +46,11 @@ export async function POST(request: Request) {
       { error: "제목과 유효한 문항이 필요합니다. (객관식은 선택지 2개 이상, 주관식은 허용 정답 1개 이상)" },
       { status: 400 }
     );
+  }
+
+  const qpa = parseQuestionsPerAttemptFromAdminBody(body as Record<string, unknown>, questions.length);
+  if (!qpa.ok) {
+    return NextResponse.json({ error: qpa.error }, { status: 400 });
   }
 
   const win = parseQuizAvailabilityFromBody(body as Record<string, unknown>);
@@ -54,6 +67,7 @@ export async function POST(request: Request) {
     createdBy: session.sub,
     availableFrom: win.availableFrom,
     availableUntil: win.availableUntil,
+    ...(qpa.value !== undefined ? { questionsPerAttempt: qpa.value } : {}),
   };
 
   await mutateStore((store) => ({

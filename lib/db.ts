@@ -6,7 +6,7 @@ import Client from "@replit/database";
 import { promises as fs } from "fs";
 import path from "path";
 import { ensureBootstrapAdmin } from "./bootstrap";
-import type { AppStore, QuizSubmission, User, Quiz } from "./types";
+import type { AppStore, QuizQuestionDraw, QuizSubmission, User, Quiz } from "./types";
 
 const STORE_KEY = "security_quiz_app";
 const LOCAL_DIR = path.join(process.cwd(), ".data");
@@ -21,10 +21,12 @@ function normalizeStore(raw: unknown): AppStore {
   const o = raw as Record<string, unknown>;
   if (!Array.isArray(o.users) || !Array.isArray(o.quizzes)) return emptyStore();
   const quizSubmissions = Array.isArray(o.quizSubmissions) ? (o.quizSubmissions as QuizSubmission[]) : [];
+  const quizQuestionDraws = Array.isArray(o.quizQuestionDraws) ? (o.quizQuestionDraws as QuizQuestionDraw[]) : [];
   return {
     users: o.users as User[],
     quizzes: o.quizzes as Quiz[],
     quizSubmissions,
+    quizQuestionDraws,
   };
 }
 

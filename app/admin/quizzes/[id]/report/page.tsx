@@ -96,7 +96,12 @@ export default function AdminQuizReportPage() {
         <div>
           <p className="text-sm text-[var(--muted)]">퀴즈 응시 현황</p>
           <h1 className="mt-1 text-2xl font-bold text-white">{report.quiz.title}</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">문항 수 {report.quiz.questionCount}개</p>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            문항 풀 {report.quiz.questionCount}개
+            {report.quiz.questionsPerAttempt != null
+              ? ` · 응시당 ${report.quiz.questionsPerAttempt}개 무작위 출제`
+              : ""}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -221,7 +226,11 @@ export default function AdminQuizReportPage() {
           {report.correctCountHistogram.map((h) => (
             <li key={h.correct} className="flex items-center gap-3 text-sm">
               <span className="w-24 shrink-0 tabular-nums text-[var(--muted)]">
-                {h.correct}개 ({report.quiz.questionCount ? Math.round((h.correct / report.quiz.questionCount) * 100) : 0}%)
+                {h.correct}개 (
+                {report.quiz.histogramDenominator
+                  ? Math.round((h.correct / report.quiz.histogramDenominator) * 100)
+                  : 0}
+                %)
               </span>
               <div className="h-6 min-w-0 flex-1 overflow-hidden rounded bg-[var(--bg)]">
                 <div

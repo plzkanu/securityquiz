@@ -27,6 +27,8 @@ type Props = {
   /** ISO 문자열 또는 null — 풀이 기간 시작 */
   initialAvailableFrom?: string | null;
   initialAvailableUntil?: string | null;
+  /** 비우면 전체 문항·등록 순서. 숫자면 응시자마다 해당 개수만큼 무작위 출제 */
+  initialQuestionsPerAttempt?: number | null;
 };
 
 export function questionToDraft(q: Question): QuestionDraft {
@@ -80,6 +82,7 @@ export function QuizForm({
   initialQuestions,
   initialAvailableFrom = null,
   initialAvailableUntil = null,
+  initialQuestionsPerAttempt = null,
 }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState(initialTitle);
@@ -88,6 +91,9 @@ export function QuizForm({
   const [availableUntilLocal, setAvailableUntilLocal] = useState(() => isoToDatetimeLocalValue(initialAvailableUntil));
   const [questions, setQuestions] = useState<QuestionDraft[]>(
     initialQuestions && initialQuestions.length > 0 ? initialQuestions : [emptyQuestion()]
+  );
+  const [questionsPerAttemptInput, setQuestionsPerAttemptInput] = useState(
+    initialQuestionsPerAttempt != null ? String(initialQuestionsPerAttempt) : ""
   );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -268,6 +274,18 @@ export function QuizForm({
       return;
     }
 
+    const pool = payload.questions.length;
+    const qpaTrim = questionsPerAttemptInput.trim();
+    let questionsPerAttempt: number | null = null;
+    if (qpaTrim !== "") {
+      const n = Number.parseInt(qpaTrim, 10);
+      if (!Number.isFinite(n) || n < 1 || n > pool) {
+        setError(`출제 문항 수는 1~${pool} 사이 정수이거나 비워 두세요(전체 문항·순서 고정).`);
+        return;
+      }
+      questionsPerAttempt = n;
+    }
+
     setSaving(true);
     try {
       const url = mode === "create" ? "/api/admin/quizzes" : `/api/admin/quizzes/${quizId}`;
@@ -275,7 +293,7 @@ export function QuizForm({
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, questionsPerAttempt }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
@@ -317,6 +335,23 @@ export function QuizForm({
             rows={2}
             className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-[var(--text)]"
           />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-[var(--muted)]">응시 시 출제 문항 수 (선택)</label>
+          <input
+            type="number"
+            min={1}
+            max={Math.max(1, questions.length)}
+            value={questionsPerAttemptInput}
+            onChange={(e) => setQuestionsPerAttemptInput(e.target.value)}
+            placeholder="비우면 전체 문항"
+            className="mt-1 w-full max-w-xs rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-[var(--text)]"
+          />
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            숫자를 넣으면 등록한 문항 풀에서 응시자마다 그 개수만큼 무작위로 뽑아 출제합니다. 새로고침해도 같은 사람에게는 같은
+            문항이 유지됩니다. 비우면 예전처럼 전체 문항이 등록 순서대로 나갑니다. 개수를 풀과 같게 하면 전체가 나가되 순서만
+            사람마다 다릅니다.
+          </p>
         </div>
         <div className="rounded-lg border border-[var(--border)] border-dashed bg-[var(--bg)]/50 p-3">
           <p className="text-sm font-medium text-white">풀이 가능 기간</p>

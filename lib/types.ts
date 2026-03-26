@@ -50,6 +50,19 @@ export type Quiz = {
   availableFrom?: string | null;
   /** ISO 8601, 풀이 가능 종료(포함). null/없음이면 종료 제한 없음 */
   availableUntil?: string | null;
+  /**
+   * 풀에서 무작위로 출제할 문항 수. 미설정이면 등록 순서대로 전체 문항(기존 동작).
+   * 설정 시 응시자마다 해당 개수만큼 무작위 출제(개수가 풀 크기와 같으면 전체를 무작위 순서로).
+   */
+  questionsPerAttempt?: number | null;
+};
+
+/** 미제출 사용자의 출제 문항 순서(새로고침 시 동일하게 유지) */
+export type QuizQuestionDraw = {
+  userId: string;
+  quizId: string;
+  questionIds: string[];
+  createdAt: string;
 };
 
 /** 제출 시점 문항별 채점 (구 데이터에는 없을 수 있음) */
@@ -67,14 +80,17 @@ export type QuizSubmission = {
   submittedAt: string;
   total: number;
   correct: number;
-  /** 문항 순서는 제출 당시 퀴즈 문항 순서와 동일 */
+  /** 문항 순서는 제출 당시 출제된 문항 순서와 동일 */
   questionResults?: QuizSubmissionQuestionResult[];
   /** 제출 당시 답안 (객관식: 선택 인덱스, 미선택·무효는 -1 / 주관식: 입력 문자열). 구 데이터 없음 */
   answers?: Array<number | string>;
+  /** 제출 시 출제된 문항 id 순서. 없으면 구데이터(전체 문항·등록 순서)로 간주 */
+  attemptQuestionIds?: string[];
 };
 
 export type AppStore = {
   users: User[];
   quizzes: Quiz[];
   quizSubmissions: QuizSubmission[];
+  quizQuestionDraws?: QuizQuestionDraw[];
 };
