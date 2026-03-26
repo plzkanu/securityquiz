@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { formatQuizAvailabilityForList } from "@/lib/quiz-availability";
 
 type Row = {
   id: string;
   title: string;
   description: string;
   questionCount: number;
+  availableFrom: string | null;
+  availableUntil: string | null;
 };
 
 export default function QuizzesPage() {
@@ -51,7 +54,9 @@ export default function QuizzesPage() {
               >
                 <p className="font-semibold text-white">{r.title}</p>
                 {r.description ? <p className="mt-1 text-sm text-[var(--muted)]">{r.description}</p> : null}
-                <p className="mt-2 text-xs text-[var(--muted)]">문항 {r.questionCount}개</p>
+                <p className="mt-2 text-xs text-[var(--muted)]">
+                  문항 {r.questionCount}개 · 풀이 기간: {formatQuizAvailabilityForList(r.availableFrom, r.availableUntil)}
+                </p>
               </Link>
             </li>
           ))}

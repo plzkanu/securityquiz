@@ -10,10 +10,12 @@ export type SessionPayload = {
   sub: string;
   username: string;
   role: UserRole;
+  /** 헤더 표시용 이름(부서) 등 */
+  displayLabel: string;
 };
 
 export async function signSession(payload: SessionPayload): Promise<string> {
-  return new SignJWT({ username: payload.username, role: payload.role })
+  return new SignJWT({ username: payload.username, role: payload.role, displayLabel: payload.displayLabel })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(payload.sub)
     .setIssuedAt()
@@ -27,10 +29,16 @@ export async function verifySession(token: string): Promise<SessionPayload | nul
     const sub = payload.sub;
     const username = payload.username;
     const role = payload.role;
+    const displayLabel =
+      typeof payload.displayLabel === "string" && payload.displayLabel.trim()
+        ? payload.displayLabel
+        : typeof username === "string"
+          ? username
+          : "";
     if (typeof sub !== "string" || typeof username !== "string" || (role !== "admin" && role !== "user")) {
       return null;
     }
-    return { sub, username, role };
+    return { sub, username, role, displayLabel };
   } catch {
     return null;
   }

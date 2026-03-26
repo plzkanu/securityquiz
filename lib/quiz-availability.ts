@@ -70,3 +70,15 @@ export function datetimeLocalValueToIso(s: string): string | null {
   if (Number.isNaN(d.getTime())) return null;
   return d.toISOString();
 }
+
+/** 사용자 목록·카드 등에 표시 */
+export function formatQuizAvailabilityForList(
+  availableFrom: string | null | undefined,
+  availableUntil: string | null | undefined
+): string {
+  const from = typeof availableFrom === "string" && availableFrom.trim() ? availableFrom : null;
+  const until = typeof availableUntil === "string" && availableUntil.trim() ? availableUntil : null;
+  if (!from && !until) return "상시 풀이 가능";
+  const fmt = (iso: string) => new Date(iso).toLocaleString("ko-KR");
+  return `${from ? fmt(from) : "—"} ~ ${until ? fmt(until) : "—"}`;
+}

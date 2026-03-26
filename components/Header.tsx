@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 type Props = {
-  username: string;
+  /** 이름(소속부서) 등 로그인자 표시용 */
+  displayLabel: string;
   role: "admin" | "user";
 };
 
-export function Header({ username, role }: Props) {
+export function Header({ displayLabel, role }: Props) {
   const router = useRouter();
 
   async function logout() {
@@ -33,7 +34,7 @@ export function Header({ username, role }: Props) {
             퀴즈 풀기
           </Link>
           <span className="hidden sm:inline">·</span>
-          <span className="text-[var(--text)]">{username}</span>
+          <span className="text-[var(--text)]">{displayLabel}</span>
           <button
             type="button"
             onClick={() => void logout()}

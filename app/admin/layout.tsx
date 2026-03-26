@@ -9,7 +9,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
   return (
     <>
-      <Header username={session.username} role="admin" />
+      <Header displayLabel={session.displayLabel} role="admin" />
       <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
     </>
   );

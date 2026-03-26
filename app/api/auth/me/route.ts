@@ -7,6 +7,6 @@ export async function GET() {
     return NextResponse.json({ user: null });
   }
   return NextResponse.json({
-    user: { username: session.username, role: session.role },
+    user: { username: session.username, role: session.role, displayLabel: session.displayLabel },
   });
 }

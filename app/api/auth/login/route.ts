@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { loadStoreWithBootstrap } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
 import { attachSessionCookie, signSession } from "@/lib/auth";
+import { sessionDisplayLabel } from "@/lib/user-display";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
       sub: user.id,
       username: user.username,
       role: user.role,
+      displayLabel: sessionDisplayLabel(user),
     });
   } catch {
     return NextResponse.json(
