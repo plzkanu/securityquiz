@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Fragment, useCallback, useEffect, useState } from "react";
-import type { QuizReport } from "@/lib/quiz-report";
+import {
+  drawRandomSubset,
+  eligibleByMinScore,
+  excludeUserIdsFromPool,
+} from "@/lib/quiz-lottery";
+import type { QuizReport, QuizReportUserRow } from "@/lib/quiz-report";
 
 export default function AdminQuizReportPage() {
   const params = useParams();
@@ -16,6 +21,12 @@ export default function AdminQuizReportPage() {
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [userSearch, setUserSearch] = useState("");
   const [openDetailUserId, setOpenDetailUserId] = useState<string | null>(null);
+
+  const [lotteryMinPercent, setLotteryMinPercent] = useState(80);
+  const [lotteryDrawCount, setLotteryDrawCount] = useState(1);
+  const [lotteryExcludedIds, setLotteryExcludedIds] = useState<string[]>([]);
+  const [lotteryWinners, setLotteryWinners] = useState<QuizReportUserRow[] | null>(null);
+  const [lotteryNotice, setLotteryNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -37,6 +48,40 @@ export default function AdminQuizReportPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!report) return;
+    const eligible = eligibleByMinScore(report.userRows, lotteryMinPercent);
+    const ids = new Set(eligible.map((r) => r.userId));
+    setLotteryExcludedIds((prev) => prev.filter((id) => ids.has(id)));
+  }, [report, lotteryMinPercent]);
+
+  const toggleLotteryExcluded = useCallback((userId: string) => {
+    setLotteryExcludedIds((prev) =>
+      prev.includes(userId) ? prev.filter((x) => x !== userId) : [...prev, userId]
+    );
+    setLotteryWinners(null);
+    setLotteryNotice(null);
+  }, []);
+
+  const runLottery = useCallback(() => {
+    if (!report) return;
+    const n = Math.floor(Number(lotteryDrawCount));
+    if (!Number.isFinite(n) || n < 1) {
+      setLotteryNotice("추첨 인원은 1 이상의 정수로 입력하세요.");
+      setLotteryWinners(null);
+      return;
+    }
+    const elig = eligibleByMinScore(report.userRows, lotteryMinPercent);
+    const pool = excludeUserIdsFromPool(elig, new Set(lotteryExcludedIds));
+    if (pool.length === 0) {
+      setLotteryNotice("추첨 가능한 인원이 없습니다. 최소 점수 또는 제외 설정을 확인하세요.");
+      setLotteryWinners(null);
+      return;
+    }
+    setLotteryNotice(null);
+    setLotteryWinners(drawRandomSubset(pool, n));
+  }, [report, lotteryDrawCount, lotteryMinPercent, lotteryExcludedIds]);
 
   async function clearAllSubmissions() {
     if (!id) return;
@@ -81,6 +126,9 @@ export default function AdminQuizReportPage() {
 
   const maxHist = Math.max(1, ...report.correctCountHistogram.map((h) => h.count));
   const maxBand = Math.max(1, ...report.scoreBandHistogram.map((h) => h.count));
+
+  const lotteryEligible = eligibleByMinScore(report.userRows, lotteryMinPercent);
+  const lotteryPool = excludeUserIdsFromPool(lotteryEligible, new Set(lotteryExcludedIds));
 
   const searchQ = userSearch.trim().toLowerCase();
   const filteredUserRows = !searchQ
@@ -260,6 +308,147 @@ export default function AdminQuizReportPage() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="rounded-lg border border-violet-900/35 bg-[var(--card)] p-6">
+        <h2 className="text-lg font-semibold text-white">점수 기준 랜덤 추첨</h2>
+        <p className="mt-1 text-xs text-[var(--muted)]">
+          응시 완료자만 대상입니다. 지정한 점수(%) 이상인 사람 중에서, 아래에서 &quot;추첨에서 제외&quot;로 표시한
+          사람을 뺀 뒤 무작위로 뽑습니다.
+        </p>
+        <div className="mt-4 flex flex-wrap items-end gap-4">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-[var(--muted)]">최소 점수 (%)</span>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={0.1}
+              value={Number.isFinite(lotteryMinPercent) ? lotteryMinPercent : 0}
+              onChange={(e) => {
+                const v = Number.parseFloat(e.target.value);
+                setLotteryMinPercent(Number.isFinite(v) ? Math.min(100, Math.max(0, v)) : 0);
+                setLotteryWinners(null);
+                setLotteryNotice(null);
+              }}
+              className="w-28 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-white tabular-nums focus:border-violet-500/50 focus:outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-[var(--muted)]">추첨 인원</span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={lotteryDrawCount}
+              onChange={(e) => {
+                const v = Number.parseInt(e.target.value, 10);
+                setLotteryDrawCount(Number.isFinite(v) && v >= 1 ? v : 1);
+                setLotteryWinners(null);
+                setLotteryNotice(null);
+              }}
+              className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-white tabular-nums focus:border-violet-500/50 focus:outline-none"
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => runLottery()}
+              className="rounded-lg border border-violet-600/55 bg-violet-950/45 px-4 py-2 text-sm text-violet-100 hover:border-violet-400/50 hover:text-white"
+            >
+              추첨 실행
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setLotteryExcludedIds([]);
+                setLotteryWinners(null);
+                setLotteryNotice(null);
+              }}
+              disabled={lotteryExcludedIds.length === 0}
+              className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--muted)] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              제외 전체 해제
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setLotteryWinners(null);
+                setLotteryNotice(null);
+              }}
+              disabled={!lotteryWinners?.length && !lotteryNotice}
+              className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--muted)] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              결과·안내 지우기
+            </button>
+          </div>
+        </div>
+        <p className="mt-3 text-sm text-[var(--text)]">
+          점수 기준 충족{" "}
+          <span className="font-semibold tabular-nums text-white">{lotteryEligible.length}</span>명 · 제외 후 풀{" "}
+          <span className="font-semibold tabular-nums text-white">{lotteryPool.length}</span>명
+          {lotteryDrawCount > lotteryPool.length && lotteryPool.length > 0 ? (
+            <span className="ml-2 text-amber-200/90">
+              (요청 {lotteryDrawCount}명 → 풀 인원만큼만 추첨됩니다)
+            </span>
+          ) : null}
+        </p>
+        {lotteryNotice ? (
+          <p className="mt-2 text-sm text-amber-200/90">{lotteryNotice}</p>
+        ) : null}
+        {lotteryWinners && lotteryWinners.length > 0 ? (
+          <div className="mt-4 rounded-md border border-emerald-800/45 bg-emerald-950/25 p-4">
+            <p className="text-sm font-medium text-emerald-100/95">추첨 결과</p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-[var(--text)]">
+              {lotteryWinners.map((u) => (
+                <li key={u.userId}>
+                  <span className="text-white">{u.username}</span>
+                  {u.name ? <span className="text-[var(--muted)]"> ({u.name})</span> : null}
+                  <span className="text-[var(--muted)]"> · {u.department}</span>
+                  <span className="tabular-nums text-blue-200/85">
+                    {" "}
+                    · {u.correct}/{u.total} ({u.scorePercent}%)
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
+        {lotteryEligible.length === 0 ? (
+          <p className="mt-4 text-sm text-amber-200/85">이 최소 점수를 만족하는 응시 완료자가 없습니다.</p>
+        ) : (
+          <div className="mt-4 max-h-56 overflow-auto rounded-md border border-[var(--border)]">
+            <ul className="divide-y divide-[var(--border)]/60 text-sm">
+              {lotteryEligible.map((u) => {
+                const excluded = lotteryExcludedIds.includes(u.userId);
+                return (
+                  <li
+                    key={u.userId}
+                    className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 ${
+                      excluded ? "bg-[var(--bg)]/80 opacity-70" : ""
+                    }`}
+                  >
+                    <label className="flex cursor-pointer items-center gap-2 shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={excluded}
+                        onChange={() => toggleLotteryExcluded(u.userId)}
+                        className="rounded border-[var(--border)]"
+                      />
+                      <span className="text-xs text-[var(--muted)]">추첨에서 제외</span>
+                    </label>
+                    <span className="font-medium text-white">{u.username}</span>
+                    <span className="text-[var(--muted)]">{u.name ?? "—"}</span>
+                    <span className="text-[var(--muted)]">{u.department}</span>
+                    <span className="ml-auto tabular-nums text-blue-200/90">
+                      {u.correct}/{u.total} ({u.scorePercent}%)
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
       </section>
 
       <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
