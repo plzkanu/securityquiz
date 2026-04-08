@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "node scripts/start-prod.mjs",
     "lint": "next lint",
-    "replit-sync": "git fetch origin main && git reset --hard origin/main && npm install"
+    "replit-sync": "git fetch origin main && git reset --hard origin/main && npm install",
+    "replit-deploy-build": "git fetch origin main && git reset --hard origin/main && npm install && npm run build"
   },
   "dependencies": {
     "@replit/database": "^3.0.1",

@@ -93,6 +93,10 @@ export function parseExcelBuffer(buf: ArrayBuffer): ImportedUserRow[] {
       name = cells[2] ?? "";
       department = cells[3] ?? "";
       company = cells.length >= 5 ? String(cells[4] ?? "").trim() : "";
+      /* E열이 비었을 때 F열을 소속회사로 쓰는 시트 대응 */
+      if (!company && cells.length >= 6) {
+        company = String(cells[5] ?? "").trim();
+      }
     } else {
       continue;
     }

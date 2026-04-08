@@ -1,8 +1,47 @@
 import { attemptQuestionCount, usesRandomAttempt } from "./quiz-draw";
 import { migrateQuiz } from "./questions";
-import type { AppStore, QuizSubmission, QuizSubmissionQuestionResult } from "./types";
+import type { AppStore, QuizSubmission, QuizSubmissionQuestionResult, User } from "./types";
 
 export const REPORT_NO_DEPARTMENT = "(부서 없음)";
+
+export function normalizeUserCompany(u: Pick<User, "company">): string {
+  const c = u.company?.trim();
+  return c ? c : "IND";
+}
+
+/**
+ * 등록된 모든 계정(관리자 포함)의 소속 회사 코드를 모읍니다.
+ * 응시 대상은 역할이 사용자인 사람뿐이지만, 셀렉트 후보는 회사 코드를 쓰는 모든 계정을 반영합니다.
+ */
+export function listReportCompanyCodes(store: AppStore): string[] {
+  const set = new Set<string>();
+  for (const u of store.users) {
+    set.add(normalizeUserCompany(u));
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b, "ko"));
+}
+
+/** 쉼표·세미콜론 구분. 서버 환경 변수 `REPORT_COMPANY_CODES` (예: `ACME,BETA,IND`) */
+export function reportCompanyCodesFromEnv(): string[] {
+  const raw = process.env.REPORT_COMPANY_CODES?.trim();
+  if (!raw) return [];
+  return raw
+    .split(/[,;]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export function mergeDistinctSortedCompanyCodes(...lists: (string[] | undefined)[]): string[] {
+  const set = new Set<string>();
+  for (const list of lists) {
+    if (!list) continue;
+    for (const x of list) {
+      const t = x.trim();
+      if (t) set.add(t);
+    }
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b, "ko"));
+}
 
 export function latestSubmissionByUser(
   quizId: string,
@@ -27,6 +66,8 @@ export type QuizReportUserRow = {
   username: string;
   name?: string;
   department: string;
+  /** 소속 회사 코드 */
+  company: string;
   completed: boolean;
   correct?: number;
   total?: number;
@@ -68,6 +109,8 @@ export type QuizReport = {
   /** 점수(%) 구간별 인원 — 최신 응시 기준 */
   scoreBandHistogram: Array<{ label: string; count: number }>;
   userRows: QuizReportUserRow[];
+  /** null이면 전 회사 합산, 문자열이면 해당 회사만 */
+  companyFilter: string | null;
 };
 
 const SCORE_BANDS: { label: string }[] = [
@@ -86,7 +129,16 @@ function scoreBandIndex(p: number): number {
   return 4;
 }
 
-export function buildQuizReport(store: AppStore, quizId: string): QuizReport | null {
+export type BuildQuizReportOptions = {
+  /** 지정 시 해당 회사 코드에 속한 사용자만 대상으로 집계 */
+  company?: string | null;
+};
+
+export function buildQuizReport(
+  store: AppStore,
+  quizId: string,
+  options?: BuildQuizReportOptions
+): QuizReport | null {
   const quizRaw = store.quizzes.find((q) => q.id === quizId);
   if (!quizRaw) return null;
   const quiz = migrateQuiz(quizRaw);
@@ -97,16 +149,24 @@ export function buildQuizReport(store: AppStore, quizId: string): QuizReport | n
   const submissions = store.quizSubmissions ?? [];
   const latestByUser = latestSubmissionByUser(quizId, submissions);
 
+  const companyFilterRaw = options?.company?.trim();
+  const companyFilter = companyFilterRaw && companyFilterRaw.length > 0 ? companyFilterRaw : null;
+
+  let targetUsers = store.users.filter((u) => u.role === "user");
+  if (companyFilter) {
+    targetUsers = targetUsers.filter((u) => normalizeUserCompany(u) === companyFilter);
+  }
+
   let maxSubTotal = 0;
-  for (const sub of Array.from(latestByUser.values())) {
-    maxSubTotal = Math.max(maxSubTotal, sub.total);
+  for (const u of targetUsers) {
+    const sub = latestByUser.get(u.id);
+    if (sub) maxSubTotal = Math.max(maxSubTotal, sub.total);
   }
   const histCap = maxSubTotal > 0 ? maxSubTotal : Math.max(qCount, 1);
 
-  const targetUsers = store.users.filter((u) => u.role === "user");
-
   const userRows: QuizReportUserRow[] = targetUsers.map((u) => {
     const dept = u.department?.trim() || REPORT_NO_DEPARTMENT;
+    const co = normalizeUserCompany(u);
     const sub = latestByUser.get(u.id);
     if (!sub) {
       return {
@@ -114,6 +174,7 @@ export function buildQuizReport(store: AppStore, quizId: string): QuizReport | n
         username: u.username,
         name: u.name,
         department: dept,
+        company: co,
         completed: false,
       };
     }
@@ -132,6 +193,7 @@ export function buildQuizReport(store: AppStore, quizId: string): QuizReport | n
       username: u.username,
       name: u.name,
       department: dept,
+      company: co,
       completed: true,
       correct: sub.correct,
       total: sub.total,
@@ -232,5 +294,6 @@ export function buildQuizReport(store: AppStore, quizId: string): QuizReport | n
     correctCountHistogram,
     scoreBandHistogram,
     userRows,
+    companyFilter,
   };
 }

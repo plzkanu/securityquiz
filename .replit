@@ -8,7 +8,8 @@ modules = ["nodejs-22"]
 channel = "stable-24_11"
 
 [deployment]
-build = ["npm", "run", "build"]
+# GitHub main 최신 + 의존성 설치 후 프로덕션 빌드 (Republish 시 자동 실행)
+build = ["npm", "run", "replit-deploy-build"]
 run = ["npm", "run", "start"]
 deploymentTarget = "cloudrun"
 

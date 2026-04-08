@@ -8,7 +8,7 @@
 2. **Replit Shell** 에서 `npm run replit-sync` 로 GitHub 최신 코드·의존성 반영  
 3. **Replit** 에서 **Republish**(또는 Deploy) 로 재배포  
 
-배포 동작은 저장소 루트의 `.replit` 파일 **`[deployment]`** 섹션에 맞춰집니다. Replit은 **빌드**와 **실행**이 분리되므로 `build = ["npm","run","build"]` 와 `run = ["npm","run","start"]` 를 각각 두고, `run` 에서 `npm run build` 를 다시 넣지 않습니다.
+배포 동작은 저장소 루트의 `.replit` 파일 **`[deployment]`** 섹션에 맞춰집니다. Replit은 **빌드**와 **실행**이 분리됩니다. **`build`** 는 `npm run replit-deploy-build` 로, **`git fetch origin main && git reset --hard origin/main && npm install && npm run build`** 를 한 번에 수행한 뒤 이미지를 만듭니다. **`run`** 은 `npm run start` 만 실행하므로, `run` 안에 `npm run build` 를 넣지 않습니다.
 
 프로덕션 `npm run start` 는 `scripts/start-prod.mjs` 로 **`0.0.0.0`** 에 바인딩하고, Replit이 넣어 주는 **`PORT`** 가 있으면 그 포트를 씁니다(없으면 3000). `.replit` 의 `localPort = 3000` / `externalPort = 80` 과 맞춰져 있습니다.
 
@@ -49,15 +49,22 @@ git push origin main
 
 ---
 
-## 3단계: Replit에서 동기화 (매번 배포 전 실행)
+## 3단계: Replit에서 동기화 (개발 워크스페이스에서 미리 맞출 때)
 
-Replit 왼쪽 **Tools** → **Shell** 을 연 뒤 **한 줄**만 실행하면 됩니다.
+**Republish(배포)** 할 때는 **빌드 단계에서 자동으로** `git fetch origin main` → `reset --hard origin/main` → `npm install` → `npm run build` 가 실행됩니다. 별도 Shell 동기화 없이 GitHub에 푸시한 뒤 **Deploy만** 눌러도 최신 `main` 이 반영됩니다.
+
+로컬 Repl 편집기에서 **미리** 워크스페이스를 GitHub와 맞추고 싶을 때는 Shell에서:
 
 ```bash
 npm run replit-sync
 ```
 
-이 스크립트는 `origin/main` 최신 커밋으로 맞춘 뒤 `npm install` 까지 합니다. (브랜치가 `master`인 저장소라면 아래 수동 명령에서 `main` → `master` 로 바꿔 실행하세요.)
+`replit-sync` 는 `origin/main` 으로 맞춘 뒤 `npm install` 까지만 합니다(빌드 없음). (브랜치가 `master`인 저장소라면 아래 수동 명령에서 `main` → `master` 로 바꿔 실행하세요.)
+
+### 배포 빌드 스크립트와 맞추려면 (`package.json`)
+
+- **`replit-deploy-build`**: 위 git 동기화 + `npm install` + **`npm run build`** — `.replit` 의 `[deployment] build` 에 연결됨  
+- **`replit-sync`**: git 동기화 + `npm install` 만 — 개발용
 
 ### (참고) 수동으로 나눠 실행할 때
 
@@ -73,8 +80,9 @@ npm install
 
 ## 4단계: 재배포
 
-1. Replit 오른쪽 상단 **Deploy** 영역에서 **Republish** (또는 **Deploy**) 클릭  
-2. 배포가 끝난 뒤 제공되는 URL로 접속해 동작 확인  
+1. GitHub `main` 에 푸시되어 있는지 확인  
+2. Replit 오른쪽 상단 **Deploy** 영역에서 **Republish** (또는 **Deploy**) 클릭 — 빌드 시 자동으로 `main` 동기화·`npm install`·`next build` 가 수행됩니다  
+3. 배포가 끝난 뒤 제공되는 URL로 접속해 동작 확인  
 
 ---
 
@@ -163,11 +171,14 @@ test -n "$REPLIT_DB_URL" && echo "REPLIT_DB_URL is set" || echo "REPLIT_DB_URL i
 
 ## 요약: Replit에서 배포할 때마다
 
-1. Shell 열기  
-2. `npm run replit-sync` 실행 (`master` 기본 브랜치면 수동 동기화 명령 사용)  
-3. **Republish** 클릭  
+1. 로컬(Cursor)에서 변경 후 **GitHub `main`** 에 푸시  
+2. **Republish** 클릭 — 빌드가 `origin/main` 기준으로 동기화·설치·빌드합니다  
 
-이 순서를 지키면 로컬에서 푸시한 내용이 Replit 배포에 반영됩니다.
+Repl 워크스페이스 파일도 미리 맞추고 싶으면 Shell에서 `npm run replit-sync` 를 추가로 실행하면 됩니다.
+
+### 기본 브랜치가 `master` 인 경우
+
+`package.json` 의 `replit-sync` / `replit-deploy-build` 안의 `main` 을 `master` 로 바꾸거나, Shell에서만 수동으로 `git fetch origin master && git reset --hard origin/master` 를 사용하세요.
 
 ---
 
