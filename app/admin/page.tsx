@@ -189,6 +189,17 @@ function UsersPanel() {
   const [listLoading, setListLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editUsername, setEditUsername] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [editDisplayName, setEditDisplayName] = useState("");
+  const [editDepartment, setEditDepartment] = useState("");
+  const [editCompany, setEditCompany] = useState("IND");
+  const [editRole, setEditRole] = useState<"user" | "admin">("user");
+  const [editMsg, setEditMsg] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   const fetchUserList = useCallback(async () => {
     setListLoading(true);
     setListError(null);
@@ -229,6 +240,79 @@ function UsersPanel() {
 
   function refreshList() {
     void fetchUserList();
+  }
+
+  function openEdit(u: UserRow) {
+    setEditingId(u.id);
+    setEditUsername(u.username);
+    setEditPassword("");
+    setEditDisplayName(u.name ?? "");
+    setEditDepartment(u.department ?? "");
+    setEditCompany((u.company ?? "IND").trim() || "IND");
+    setEditRole(u.role === "admin" ? "admin" : "user");
+    setEditMsg(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditMsg(null);
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingId) return;
+    setEditSaving(true);
+    setEditMsg(null);
+    try {
+      const res = await fetch(`/api/admin/users/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: editUsername,
+          password: editPassword,
+          role: editRole,
+          name: editDisplayName,
+          department: editDepartment,
+          company: editCompany.trim() || "IND",
+        }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setEditMsg(data.error || "저장 실패");
+        return;
+      }
+      setEditingId(null);
+      refreshList();
+    } catch {
+      setEditMsg("저장 중 오류가 발생했습니다.");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function deleteUser(u: UserRow) {
+    if (
+      !confirm(
+        `"${u.username}" 계정을 삭제할까요?\n이 사용자의 퀴즈 응시·출제 기록도 함께 삭제되며, 되돌릴 수 없습니다.`
+      )
+    ) {
+      return;
+    }
+    setDeletingId(u.id);
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}`, { method: "DELETE" });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        alert(data.error || "삭제에 실패했습니다.");
+        return;
+      }
+      if (editingId === u.id) cancelEdit();
+      refreshList();
+    } catch {
+      alert("삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   async function addUser(e: React.FormEvent) {
@@ -383,7 +467,7 @@ function UsersPanel() {
       <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
         <h2 className="text-lg font-semibold text-white">사용자 조회</h2>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          아이디·이름·소속 부서·소속 회사에 포함된 글자로 검색합니다. 페이지당 20명입니다.
+          아이디·이름·소속 부서·소속 회사에 포함된 글자로 검색한 뒤, 목록에서 수정·삭제할 수 있습니다. 페이지당 20명입니다.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <input
@@ -422,19 +506,109 @@ function UsersPanel() {
                 <li className="px-4 py-8 text-center text-sm text-[var(--muted)]">조건에 맞는 사용자가 없습니다.</li>
               ) : (
                 listData.users.map((u) => (
-                  <li key={u.id} className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <span className="font-medium text-white">{u.username}</span>
-                      {(u.name || u.department || u.company) && (
-                        <p className="mt-0.5 text-xs text-[var(--muted)]">
-                          {[u.name, u.department, u.company].filter(Boolean).join(" · ")}
+                  <li key={u.id} className="px-4 py-3 text-sm">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <span className="font-medium text-white">{u.username}</span>
+                        {(u.name || u.department || u.company) && (
+                          <p className="mt-0.5 text-xs text-[var(--muted)]">
+                            {[u.name, u.department, u.company].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                        <p className="mt-0.5 text-[10px] text-[var(--muted)]/80">
+                          등록 {new Date(u.createdAt).toLocaleString("ko-KR")}
                         </p>
-                      )}
-                      <p className="mt-0.5 text-[10px] text-[var(--muted)]/80">
-                        등록 {new Date(u.createdAt).toLocaleString("ko-KR")}
-                      </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[var(--muted)]">{u.role === "admin" ? "관리자" : "사용자"}</span>
+                        <button
+                          type="button"
+                          onClick={() => openEdit(u)}
+                          className="rounded-md border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted)] hover:border-blue-500/50 hover:text-white"
+                        >
+                          수정
+                        </button>
+                        <button
+                          type="button"
+                          disabled={deletingId === u.id}
+                          onClick={() => void deleteUser(u)}
+                          className="rounded-md border border-red-900/50 px-2.5 py-1 text-xs text-red-300 hover:bg-red-950/40 disabled:opacity-40"
+                        >
+                          {deletingId === u.id ? "삭제 중…" : "삭제"}
+                        </button>
+                      </div>
                     </div>
-                    <span className="text-[var(--muted)]">{u.role === "admin" ? "관리자" : "사용자"}</span>
+                    {editingId === u.id && (
+                      <form
+                        onSubmit={(e) => void saveEdit(e)}
+                        className="mt-3 border-t border-[var(--border)] pt-3"
+                      >
+                        <p className="mb-2 text-xs text-[var(--muted)]">
+                          비밀번호는 바꿀 때만 입력하세요. 비우면 기존 비밀번호가 유지됩니다.
+                        </p>
+                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                          <input
+                            required
+                            placeholder="아이디"
+                            value={editUsername}
+                            onChange={(e) => setEditUsername(e.target.value)}
+                            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                          />
+                          <input
+                            type="password"
+                            placeholder="새 비밀번호 (선택)"
+                            value={editPassword}
+                            onChange={(e) => setEditPassword(e.target.value)}
+                            autoComplete="new-password"
+                            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                          />
+                          <input
+                            placeholder="이름 (선택)"
+                            value={editDisplayName}
+                            onChange={(e) => setEditDisplayName(e.target.value)}
+                            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                          />
+                          <input
+                            placeholder="소속 부서 (선택)"
+                            value={editDepartment}
+                            onChange={(e) => setEditDepartment(e.target.value)}
+                            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                          />
+                          <input
+                            placeholder="소속 회사 코드 (기본 IND)"
+                            value={editCompany}
+                            onChange={(e) => setEditCompany(e.target.value)}
+                            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                          />
+                          <select
+                            value={editRole}
+                            onChange={(e) => setEditRole(e.target.value as "user" | "admin")}
+                            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                          >
+                            <option value="user">사용자</option>
+                            <option value="admin">관리자</option>
+                          </select>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            type="submit"
+                            disabled={editSaving}
+                            className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+                          >
+                            {editSaving ? "저장 중…" : "저장"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={editSaving}
+                            onClick={() => cancelEdit()}
+                            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--muted)] hover:text-white disabled:opacity-50"
+                          >
+                            취소
+                          </button>
+                        </div>
+                        {editMsg && <p className="mt-2 text-sm text-red-400">{editMsg}</p>}
+                      </form>
+                    )}
                   </li>
                 ))
               )}

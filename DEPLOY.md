@@ -8,7 +8,9 @@
 2. **Replit Shell** 에서 `npm run replit-sync` 로 GitHub 최신 코드·의존성 반영  
 3. **Replit** 에서 **Republish**(또는 Deploy) 로 재배포  
 
-배포 동작은 저장소 루트의 `.replit` 파일 **`[deployment]`** 섹션에 맞춰집니다. Replit은 **빌드**와 **실행**이 분리되므로 `build = ["npm","run","build"]` 와 `run = ["npm","run","start"]` 를 각각 두고, `run` 에서 `npm run build` 를 다시 넣지 않습니다(포트는 앱 3000, `externalPort` 80 은 Cloud Run 게이트웨이에 맞춘 값).
+배포 동작은 저장소 루트의 `.replit` 파일 **`[deployment]`** 섹션에 맞춰집니다. Replit은 **빌드**와 **실행**이 분리되므로 `build = ["npm","run","build"]` 와 `run = ["npm","run","start"]` 를 각각 두고, `run` 에서 `npm run build` 를 다시 넣지 않습니다.
+
+프로덕션 `npm run start` 는 `scripts/start-prod.mjs` 로 **`0.0.0.0`** 에 바인딩하고, Replit이 넣어 주는 **`PORT`** 가 있으면 그 포트를 씁니다(없으면 3000). `.replit` 의 `localPort = 3000` / `externalPort = 80` 과 맞춰져 있습니다.
 
 ---
 
