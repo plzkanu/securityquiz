@@ -5,7 +5,7 @@
 ## 흐름 요약
 
 1. **로컬(Cursor)** 에서 코드 수정 후 **GitHub** 로 푸시  
-2. **Replit Shell** 에서 GitHub 최신 코드로 동기화  
+2. **Replit Shell** 에서 `npm run replit-sync` 로 GitHub 최신 코드·의존성 반영  
 3. **Replit** 에서 **Republish**(또는 Deploy) 로 재배포  
 
 배포 동작은 저장소 루트의 `.replit` 파일 **`[deployment]`** 섹션에 맞춰집니다. Replit은 **빌드**와 **실행**이 분리되므로 `build = ["npm","run","build"]` 와 `run = ["npm","run","start"]` 를 각각 두고, `run` 에서 `npm run build` 를 다시 넣지 않습니다(포트는 앱 3000, `externalPort` 80 은 Cloud Run 게이트웨이에 맞춘 값).
@@ -49,38 +49,23 @@ git push origin main
 
 ## 3단계: Replit에서 동기화 (매번 배포 전 실행)
 
-Replit 왼쪽 **Tools** → **Shell** 을 연 뒤, 아래를 **순서대로** 실행합니다.
+Replit 왼쪽 **Tools** → **Shell** 을 연 뒤 **한 줄**만 실행하면 됩니다.
 
-### 3-1. 최신 코드 가져오기 (필수)
+```bash
+npm run replit-sync
+```
+
+이 스크립트는 `origin/main` 최신 커밋으로 맞춘 뒤 `npm install` 까지 합니다. (브랜치가 `master`인 저장소라면 아래 수동 명령에서 `main` → `master` 로 바꿔 실행하세요.)
+
+### (참고) 수동으로 나눠 실행할 때
 
 ```bash
 git fetch origin main
 git reset --hard origin/main
-```
-
-- 브랜치가 `master`면 `main` 대신 `master` 로 바꿉니다.
-
-### 3-2. 패키지 설치 (필수)
-
-동기화 후 **항상** 실행하는 것을 권장합니다.
-
-```bash
 npm install
 ```
 
-`package-lock.json` 이 맞는 상태라면 재현성을 위해 아래도 가능합니다.
-
-```bash
-npm ci
-```
-
-### 3-3. 한 번에 실행하려면
-
-```bash
-git fetch origin main && git reset --hard origin/main && npm install
-```
-
-(`master` 브랜치면 `main` → `master`)
+`package-lock.json` 이 맞는 상태라면 `npm install` 대신 `npm ci` 를 써도 됩니다.
 
 ---
 
@@ -165,7 +150,7 @@ test -n "$REPLIT_DB_URL" && echo "REPLIT_DB_URL is set" || echo "REPLIT_DB_URL i
 
 | 확인 항목 | 조치 |
 |-----------|------|
-| Replit에서 `git status` 로 브랜치/파일 상태 확인 | `git fetch origin main && git reset --hard origin/main` 다시 실행 |
+| Replit에서 `git status` 로 브랜치/파일 상태 확인 | `npm run replit-sync` 다시 실행 (또는 동일한 fetch/reset 수동 실행) |
 | 동기화 후 `npm install` 안 함 | `npm install` 실행 후 Republish |
 | Republish만 하고 Shell에서 동기화 안 함 | **3단계 전체** 실행 후 다시 Republish |
 | Replit이 예전 커밋을 가리킴 | GitHub 푸시 성공 여부 확인 후, Shell에서 `git log -1` 로 최신 커밋인지 확인 |
@@ -177,7 +162,7 @@ test -n "$REPLIT_DB_URL" && echo "REPLIT_DB_URL is set" || echo "REPLIT_DB_URL i
 ## 요약: Replit에서 배포할 때마다
 
 1. Shell 열기  
-2. `git fetch origin main && git reset --hard origin/main && npm install` 실행 (`master` 브랜치면 이름 변경)  
+2. `npm run replit-sync` 실행 (`master` 기본 브랜치면 수동 동기화 명령 사용)  
 3. **Republish** 클릭  
 
 이 순서를 지키면 로컬에서 푸시한 내용이 Replit 배포에 반영됩니다.

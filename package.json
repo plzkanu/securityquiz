@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "replit-sync": "git fetch origin main && git reset --hard origin/main && npm install"
   },
   "dependencies": {
     "@replit/database": "^3.0.1",
