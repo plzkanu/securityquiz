@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { DELETE_NON_ADMIN_USERS_CONFIRM_PHRASE } from "@/lib/admin-users-constants";
 
 type QuizRow = {
   id: string;
@@ -199,6 +200,11 @@ function UsersPanel() {
   const [editMsg, setEditMsg] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [deleteAllPhrase, setDeleteAllPhrase] = useState("");
+  const [deleteAllBusy, setDeleteAllBusy] = useState(false);
+  const [deleteAllError, setDeleteAllError] = useState<string | null>(null);
+  const [deleteAllOk, setDeleteAllOk] = useState<string | null>(null);
 
   const fetchUserList = useCallback(async () => {
     setListLoading(true);
@@ -384,6 +390,71 @@ function UsersPanel() {
     }
   }
 
+  async function downloadUsersExcel() {
+    setExporting(true);
+    try {
+      const res = await fetch("/api/admin/users/export");
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        alert(data.error || "다운로드에 실패했습니다.");
+        return;
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get("Content-Disposition");
+      let filename = `users-export-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const m = cd?.match(/filename="([^"]+)"/);
+      if (m?.[1]) filename = m[1];
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("다운로드 중 오류가 발생했습니다.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function deleteAllUsers() {
+    setDeleteAllError(null);
+    setDeleteAllOk(null);
+    if (
+      !confirm(
+        "역할이「사용자」인 계정만 삭제합니다. 관리자 계정은 유지됩니다. 삭제되는 계정의 퀴즈 응시·출제 기록도 함께 지워집니다. 퀴즈 본문은 유지됩니다. 되돌릴 수 없습니다. 계속할까요?"
+      )
+    ) {
+      return;
+    }
+    if (deleteAllPhrase !== DELETE_NON_ADMIN_USERS_CONFIRM_PHRASE) {
+      setDeleteAllError(`아래 입력란에 정확히 「${DELETE_NON_ADMIN_USERS_CONFIRM_PHRASE}」를 입력하세요.`);
+      return;
+    }
+    setDeleteAllBusy(true);
+    try {
+      const res = await fetch("/api/admin/users/delete-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmPhrase: deleteAllPhrase }),
+      });
+      const data = (await res.json()) as { error?: string; removed?: number; keptAdmins?: number };
+      if (!res.ok) {
+        setDeleteAllError(data.error || "삭제에 실패했습니다.");
+        return;
+      }
+      setDeleteAllPhrase("");
+      setDeleteAllOk(
+        `일반 사용자 ${data.removed ?? 0}명을 삭제했습니다. 관리자 ${data.keptAdmins ?? 0}명은 그대로입니다.`
+      );
+      refreshList();
+    } catch {
+      setDeleteAllError("삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeleteAllBusy(false);
+    }
+  }
+
   return (
     <section className="mt-8 space-y-8">
       <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
@@ -490,6 +561,56 @@ function UsersPanel() {
             조회
           </button>
         </div>
+      </div>
+
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+        <h2 className="text-lg font-semibold text-white">사용자 목록보내기</h2>
+        <p className="mt-1 text-sm text-[var(--muted)]">
+          등록된 전체 사용자를 엑셀(.xlsx)로 받습니다. 비밀번호는 포함되지 않습니다. 역할·이름·부서·회사·등록일·내부 ID가 포함됩니다.
+        </p>
+        <button
+          type="button"
+          disabled={exporting}
+          onClick={() => void downloadUsersExcel()}
+          className="mt-3 rounded-lg border border-emerald-800/50 bg-emerald-950/30 px-4 py-2 text-sm font-medium text-emerald-200 hover:bg-emerald-950/50 disabled:opacity-50"
+        >
+          {exporting ? "만드는 중…" : "엑셀 다운로드"}
+        </button>
+      </div>
+
+      <div className="rounded-lg border border-red-900/40 bg-red-950/15 p-4">
+        <h2 className="text-lg font-semibold text-red-200">일반 사용자 전체 삭제</h2>
+        <p className="mt-1 text-sm text-[var(--muted)]">
+          <strong className="text-amber-200/90">관리자</strong> 계정은 삭제하지 않습니다. 역할이「사용자」인 계정만 제거하고, 해당 계정의 퀴즈
+          응시·출제 기록만 함께 지웁니다. 등록된 퀴즈 문항은 유지됩니다.
+        </p>
+        <p className="mt-2 text-sm text-red-200/90">
+          실행하려면 아래에 <strong className="text-red-100">{DELETE_NON_ADMIN_USERS_CONFIRM_PHRASE}</strong> 를 붙여 넣은 뒤 버튼을 누르세요.
+        </p>
+        <input
+          type="text"
+          value={deleteAllPhrase}
+          onChange={(e) => {
+            setDeleteAllPhrase(e.target.value);
+            setDeleteAllError(null);
+            setDeleteAllOk(null);
+          }}
+          placeholder={DELETE_NON_ADMIN_USERS_CONFIRM_PHRASE}
+          className="mt-2 w-full max-w-md rounded-lg border border-red-900/50 bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)]/50"
+          autoComplete="off"
+        />
+        <div className="mt-2">
+          <button
+            type="button"
+            disabled={deleteAllBusy}
+            onClick={() => void deleteAllUsers()}
+            className="rounded-lg border border-red-700/60 bg-red-950/50 px-4 py-2 text-sm font-medium text-red-200 hover:bg-red-950/70 disabled:opacity-50"
+          >
+            {deleteAllBusy ? "처리 중…" : "일반 사용자 전체 삭제 실행"}
+          </button>
+        </div>
+        {deleteAllError && <p className="mt-2 text-sm text-red-400">{deleteAllError}</p>}
+        {deleteAllOk && <p className="mt-2 text-sm text-emerald-300/90">{deleteAllOk}</p>}
       </div>
 
       <div>
