@@ -17,6 +17,7 @@ export async function ensureBootstrapAdmin(store: AppStore): Promise<AppStore> {
     passwordHash,
     role: "admin" as const,
     createdAt: new Date().toISOString(),
+    company: "IND" as const,
   };
   return { ...store, users: [admin], quizSubmissions: store.quizSubmissions ?? [] };
 }

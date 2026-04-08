@@ -6,6 +6,8 @@ export type ImportedUserRow = {
   password: string;
   name: string;
   department: string;
+  /** 5열·5번째 파이프 구간 이상일 때만; 없으면 빈 문자열(저장 시 IND) */
+  company: string;
 };
 
 function isLikelyHeader(username: string, password: string): boolean {
@@ -16,7 +18,7 @@ function isLikelyHeader(username: string, password: string): boolean {
   return false;
 }
 
-/** 텍스트/CSV: 한 줄당 `ID|PW|이름|소속부서` */
+/** 텍스트/CSV: 한 줄당 `ID|PW|이름|소속부서` 또는 `ID|PW|이름|소속부서|소속회사` */
 export function parsePipeDelimitedText(text: string): ImportedUserRow[] {
   const rows: ImportedUserRow[] = [];
   const normalized = text.replace(/^\uFEFF/, "");
@@ -30,15 +32,23 @@ export function parsePipeDelimitedText(text: string): ImportedUserRow[] {
     const username = parts[0] ?? "";
     const password = parts[1] ?? "";
     const name = parts[2] ?? "";
-    const department = parts.slice(3).join("|").trim();
+    let department: string;
+    let company: string;
+    if (parts.length >= 5) {
+      department = (parts[3] ?? "").trim();
+      company = parts.slice(4).join("|").trim();
+    } else {
+      department = parts.slice(3).join("|").trim();
+      company = "";
+    }
     if (!username || !password) continue;
     if (isLikelyHeader(username, password)) continue;
-    rows.push({ lineNum, username, password, name, department });
+    rows.push({ lineNum, username, password, name, department, company });
   }
   return rows;
 }
 
-/** 엑셀: A~D열이 ID,PW,이름,소속부서 이거나, 한 셀에 `ID|PW|이름|소속부서` 형식 */
+/** 엑셀: A~D열(또는 A~E열) ID,PW,이름,소속부서[,소속회사] 이거나, 한 셀에 파이프 형식 */
 export function parseExcelBuffer(buf: ArrayBuffer): ImportedUserRow[] {
   const wb = XLSX.read(buf, { type: "array" });
   const sheet = wb.Sheets[wb.SheetNames[0]];
@@ -61,6 +71,7 @@ export function parseExcelBuffer(buf: ArrayBuffer): ImportedUserRow[] {
     let password: string;
     let name: string;
     let department: string;
+    let company: string;
 
     const joinedFirst = cells[0] ?? "";
     if (joinedFirst.includes("|") && cells.filter(Boolean).length <= 1) {
@@ -69,19 +80,26 @@ export function parseExcelBuffer(buf: ArrayBuffer): ImportedUserRow[] {
       username = parts[0] ?? "";
       password = parts[1] ?? "";
       name = parts[2] ?? "";
-      department = parts.slice(3).join("|").trim();
+      if (parts.length >= 5) {
+        department = (parts[3] ?? "").trim();
+        company = parts.slice(4).join("|").trim();
+      } else {
+        department = parts.slice(3).join("|").trim();
+        company = "";
+      }
     } else if (cells.length >= 4) {
       username = cells[0] ?? "";
       password = cells[1] ?? "";
       name = cells[2] ?? "";
       department = cells[3] ?? "";
+      company = cells.length >= 5 ? String(cells[4] ?? "").trim() : "";
     } else {
       continue;
     }
 
     if (!username || !password) continue;
     if (isLikelyHeader(username, password)) continue;
-    rows.push({ lineNum, username, password, name, department });
+    rows.push({ lineNum, username, password, name, department, company });
   }
   return rows;
 }

@@ -162,6 +162,7 @@ type UserRow = {
   createdAt: string;
   name?: string;
   department?: string;
+  company?: string;
 };
 
 function UsersPanel() {
@@ -169,6 +170,7 @@ function UsersPanel() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [department, setDepartment] = useState("");
+  const [company, setCompany] = useState("IND");
   const [role, setRole] = useState<"user" | "admin">("user");
   const [msg, setMsg] = useState<string | null>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
@@ -241,6 +243,7 @@ function UsersPanel() {
         role,
         ...(displayName.trim() ? { name: displayName.trim() } : {}),
         ...(department.trim() ? { department: department.trim() } : {}),
+        company: company.trim() || "IND",
       }),
     });
     const data = (await res.json()) as { error?: string };
@@ -252,6 +255,7 @@ function UsersPanel() {
     setPassword("");
     setDisplayName("");
     setDepartment("");
+    setCompany("IND");
     setRole("user");
     setMsg("등록했습니다.");
     refreshList();
@@ -301,8 +305,11 @@ function UsersPanel() {
       <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
         <h2 className="text-lg font-semibold text-white">엑셀·CSV 일괄 등록</h2>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          한 줄(또는 엑셀 한 행)당 <code className="text-blue-300">ID|PW|이름|소속부서</code> 형식입니다. 엑셀은 A열~D열에 각각
-          넣거나, A열 한 칸에 파이프로 구분해 넣을 수 있습니다. 모두 일반 &quot;사용자&quot; 역할로 등록됩니다.
+          한 줄(또는 엑셀 한 행)당{" "}
+          <code className="text-blue-300">ID|PW|이름|소속부서</code> 또는{" "}
+          <code className="text-blue-300">ID|PW|이름|소속부서|소속회사</code> 입니다. 엑셀은 A~D열(또는 E열에 회사 코드) 또는 A열 한 칸에
+          파이프 구분입니다. 회사 코드를 생략하면 <code className="text-blue-300">IND</code>로 저장됩니다. 모두 일반 &quot;사용자&quot;
+          역할로 등록됩니다.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <label className="cursor-pointer rounded-lg border border-blue-500/50 bg-blue-950/30 px-4 py-2 text-sm font-medium text-blue-200 hover:bg-blue-950/50">
@@ -349,6 +356,12 @@ function UsersPanel() {
             onChange={(e) => setDepartment(e.target.value)}
             className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
           />
+          <input
+            placeholder="소속 회사 코드 (기본 IND)"
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+          />
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as "user" | "admin")}
@@ -370,7 +383,7 @@ function UsersPanel() {
       <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
         <h2 className="text-lg font-semibold text-white">사용자 조회</h2>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          아이디·이름·소속 부서에 포함된 글자로 검색합니다. 페이지당 20명입니다.
+          아이디·이름·소속 부서·소속 회사에 포함된 글자로 검색합니다. 페이지당 20명입니다.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <input
@@ -412,9 +425,9 @@ function UsersPanel() {
                   <li key={u.id} className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <span className="font-medium text-white">{u.username}</span>
-                      {(u.name || u.department) && (
+                      {(u.name || u.department || u.company) && (
                         <p className="mt-0.5 text-xs text-[var(--muted)]">
-                          {[u.name, u.department].filter(Boolean).join(" · ")}
+                          {[u.name, u.department, u.company].filter(Boolean).join(" · ")}
                         </p>
                       )}
                       <p className="mt-0.5 text-[10px] text-[var(--muted)]/80">

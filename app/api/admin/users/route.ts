@@ -28,13 +28,14 @@ export async function GET(request: Request) {
     createdAt: u.createdAt,
     name: u.name,
     department: u.department,
+    company: u.company?.trim() || "IND",
   }));
 
   list.sort((a, b) => a.username.localeCompare(b.username, "ko"));
 
   if (q) {
     list = list.filter((u) => {
-      const blob = [u.username, u.name ?? "", u.department ?? ""].join(" ").toLowerCase();
+      const blob = [u.username, u.name ?? "", u.department ?? "", u.company ?? ""].join(" ").toLowerCase();
       return blob.includes(q);
     });
   }
@@ -60,7 +61,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
   }
 
-  let body: { username?: string; password?: string; role?: string; name?: string; department?: string };
+  let body: {
+    username?: string;
+    password?: string;
+    role?: string;
+    name?: string;
+    department?: string;
+    company?: string;
+  };
   try {
     body = await request.json();
   } catch {
@@ -71,6 +79,8 @@ export async function POST(request: Request) {
   const role = body.role === "admin" ? "admin" : "user";
   const displayName = typeof body.name === "string" ? body.name.trim() : "";
   const department = typeof body.department === "string" ? body.department.trim() : "";
+  const companyRaw = typeof body.company === "string" ? body.company.trim() : "";
+  const company = companyRaw || "IND";
 
   if (!username || !password || password.length < 4) {
     return NextResponse.json({ error: "아이디와 비밀번호(4자 이상)를 입력하세요." }, { status: 400 });
@@ -92,6 +102,7 @@ export async function POST(request: Request) {
       passwordHash,
       role: role as UserRole,
       createdAt,
+      company,
       ...(displayName ? { name: displayName } : {}),
       ...(department ? { department } : {}),
     };
@@ -104,6 +115,14 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    user: { id, username, role, createdAt, name: displayName || undefined, department: department || undefined },
+    user: {
+      id,
+      username,
+      role,
+      createdAt,
+      company,
+      name: displayName || undefined,
+      department: department || undefined,
+    },
   });
 }

@@ -10,6 +10,8 @@ export type User = {
   name?: string;
   /** 소속 부서 */
   department?: string;
+  /** 소속 회사 코드 (예: IND) */
+  company?: string;
 };
 
 /** 객관식 */

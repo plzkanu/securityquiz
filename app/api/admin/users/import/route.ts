@@ -38,7 +38,10 @@ export async function POST(request: Request) {
 
   if (rows.length === 0) {
     return NextResponse.json(
-      { error: "유효한 행이 없습니다. 형식: ID|PW|이름|소속부서 (엑셀은 A~D열 또는 한 셀에 파이프 구분)" },
+      {
+        error:
+          "유효한 행이 없습니다. 형식: ID|PW|이름|소속부서[|소속회사] (엑셀은 A~D열 또는 A~E열, 한 셀 파이프 동일)",
+      },
       { status: 400 }
     );
   }
@@ -82,12 +85,14 @@ export async function POST(request: Request) {
         continue;
       }
       existing.add(row.username);
+      const co = row.company.trim() || "IND";
       newUsers.push({
         id: randomUUID(),
         username: row.username,
         passwordHash: hash,
         role: "user",
         createdAt,
+        company: co,
         name: row.name.trim() || undefined,
         department: row.department.trim() || undefined,
       });

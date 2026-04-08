@@ -16,6 +16,19 @@ function emptyStore(): AppStore {
   return { users: [], quizzes: [], quizSubmissions: [] };
 }
 
+/** 값이 없거나 빈 문자열인 사용자에 `company: "IND"`를 채웁니다. 변경 시 저장소에 반영됩니다. */
+export function migrateUserCompany(store: AppStore): { store: AppStore; changed: boolean } {
+  let changed = false;
+  const users = store.users.map((u) => {
+    const c = u.company?.trim();
+    if (c) return u;
+    changed = true;
+    return { ...u, company: "IND" };
+  });
+  if (!changed) return { store, changed: false };
+  return { store: { ...store, users }, changed: true };
+}
+
 function normalizeStore(raw: unknown): AppStore {
   if (!raw || typeof raw !== "object") return emptyStore();
   const o = raw as Record<string, unknown>;
@@ -78,9 +91,11 @@ export async function loadStore(): Promise<AppStore> {
 /** Loads store and persists first admin when INITIAL_ADMIN_PASSWORD is set. */
 export async function loadStoreWithBootstrap(): Promise<AppStore> {
   let store = await loadStore();
-  const before = store.users.length;
+  const beforeLen = store.users.length;
   store = await ensureBootstrapAdmin(store);
-  if (store.users.length !== before) {
+  const { store: withCompany, changed: companyMigrated } = migrateUserCompany(store);
+  store = withCompany;
+  if (store.users.length !== beforeLen || companyMigrated) {
     await saveStore(store);
   }
   return store;
